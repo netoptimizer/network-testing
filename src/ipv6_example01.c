@@ -22,6 +22,9 @@ int main(int argc, char *argv[])
 
 	int portNr = 5555;
 	char buf[1024];
+	char ipv6[42];
+
+	printf("Simple IPv6 UDP example\n");
 
 	length = sizeof (struct sockaddr_in6);
 
@@ -41,9 +44,14 @@ int main(int argc, char *argv[])
 		error("binding");
 	fromlen = sizeof(struct sockaddr_in6);
 	while (1) {
+		printf("- Waiting on recvfrom()\n");
 		n = recvfrom(sock,buf,1024,0,(struct sockaddr *)&from,&fromlen);
 		if (n < 0) error("recvfrom");
-		write(1,"Received a datagram: ",21);
+		if (!inet_ntop(AF_INET6, (void*)&from.sin6_addr, ipv6, 42))
+			error("inet_ntop");
+		else
+			printf("From (from.sin6_addr) = %s\n", ipv6);
+		write(1,"- Received a datagram: ",23);
 		write(1,buf,n);
 		n = sendto(sock,"Got your message\n",17,
 			   0,(struct sockaddr *)&from,fromlen);
