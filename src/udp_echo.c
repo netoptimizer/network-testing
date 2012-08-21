@@ -60,13 +60,16 @@ int main(int argc, char *argv[])
 	char frame[8192];/* Buffer for packet data */
 	struct in_pktinfo pktinfo;
 	int c, count = 1000000;
+	uint16_t listen_port = PORT;
 
-	while ((c = getopt(argc, argv, "c:")) != -1) {
+	while ((c = getopt(argc, argv, "c:l:")) != -1) {
 		if (c == 'c') count = atoi(optarg);
+		if (c == 'l') listen_port  = atoi(optarg);
 	}
+	printf("port %d\n", listen_port);
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
-	addr.sin_port = htons(PORT);
+	addr.sin_port = htons(listen_port);
 	if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
 		perror("bind");
 		return 1;
