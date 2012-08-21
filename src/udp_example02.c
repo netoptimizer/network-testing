@@ -40,7 +40,7 @@ int pktinfo_get(struct msghdr *my_hdr, struct in_pktinfo *pktinfo)
 				memcpy(pktinfo, get_pktinfo, sizeof(*pktinfo));
 				res = 0;
 			} else if (DEBUG) {
-				printf("Unknown ancillary data, len=%d, level=%d, %type=%d\n",
+				fprintf(stderr, "Unknown ancillary data, len=%d, level=%d, %type=%d\n",
 				       get_cmsg->cmsg_len, get_cmsg->cmsg_level, get_cmsg->cmsg_type);
 			}
 		}
@@ -86,8 +86,10 @@ int main(int argc, char *argv[])
 		if (res == -1)
 			break;
 		if (pktinfo_get(&msghdr, &pktinfo) == 0)
-			printf("Got IP_PKTINFO dst addr=%s\n",
+			printf("Got contacted on dst addr=%s ",
 			       inet_ntoa(pktinfo.ipi_spec_dst));
+		printf("From src addr=%s port=%d\n",
+		       inet_ntoa(rem_addr.sin_addr), rem_addr.sin_port);
 
 		/* ok, just echo reply this frame.
 		 * Using sendmsg() will provide IP_PKTINFO back to kernel
