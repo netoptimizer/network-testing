@@ -91,7 +91,7 @@ int main(int argc, char *argv[])
 			printf("Got contacted on dst addr=%s ",
 			       inet_ntoa(pktinfo.ipi_spec_dst));
 		printf("From src addr=%s port=%d\n",
-		       inet_ntoa(rem_addr.sin_addr), rem_addr.sin_port);
+		       inet_ntoa(rem_addr.sin_addr), htons(rem_addr.sin_port));
 
 		if (DEBUG) {
 			printf(" Extra data:\n");
