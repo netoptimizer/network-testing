@@ -16,7 +16,8 @@
  * - sendto() does not specify which source IP to use (it upto the kernel)
  * - When a host have several IPs, this can cause issues.
  * - This can be solved by using recvmsg()/sendmsg()
- * - And setting socket opt IP_PKTINFO to request this as auxiliary info
+ * - And setting socket opt IP_PKTINFO to request this as ancillary info
+ * - For IPv6 the socket opt is IPV6_RECVPKTINFO.
  */
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -24,13 +25,29 @@
 #include <linux/udp.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 
 #define PORT 4040
 #define DEBUG 1
 
-int pktinfo_get(struct msghdr *my_hdr, struct in_pktinfo *pktinfo)
+void error(char *msg)
+{
+	perror(msg);
+	exit(1);
+}
+
+#ifndef __USE_GNU
+/* IPv6 packet information - in cmsg_data[] */
+struct in6_pktinfo
+{
+	struct in6_addr ipi6_addr;	/* src/dst IPv6 address */
+	unsigned int ipi6_ifindex;	/* send/recv interface index */
+};
+#endif
+
+int pktinfo_get(struct msghdr *my_hdr, struct in_pktinfo *pktinfo, struct in6_pktinfo *pktinfo6)
 {
 	int res = -1;
 
@@ -39,17 +56,56 @@ int pktinfo_get(struct msghdr *my_hdr, struct in_pktinfo *pktinfo)
 		for (get_cmsg = CMSG_FIRSTHDR(my_hdr); get_cmsg;
 		     get_cmsg = CMSG_NXTHDR(my_hdr, get_cmsg)) {
 			if (get_cmsg->cmsg_level == IPPROTO_IP &&
-			    get_cmsg->cmsg_type == IP_PKTINFO) {
+			    get_cmsg->cmsg_type  == IP_PKTINFO) {
 				struct in_pktinfo *get_pktinfo = (struct in_pktinfo *)CMSG_DATA(get_cmsg);
 				memcpy(pktinfo, get_pktinfo, sizeof(*pktinfo));
-				res = 0;
+				res = AF_INET;
+			} else if (get_cmsg->cmsg_level == IPPROTO_IPV6 &&
+				   get_cmsg->cmsg_type  == IPV6_PKTINFO
+				) {
+				struct in6_pktinfo *get_pktinfo6 = (struct in6_pktinfo *)CMSG_DATA(get_cmsg);
+				memcpy(pktinfo6, get_pktinfo6, sizeof(*pktinfo6));
+				res = AF_INET6;
 			} else if (DEBUG) {
-				fprintf(stderr, "Unknown ancillary data, len=%d, level=%d, %type=%d\n",
-				       get_cmsg->cmsg_len, get_cmsg->cmsg_level, get_cmsg->cmsg_type);
+				fprintf(stderr, "Unknown ancillary data, len=%d, level=%d, type=%d\n",
+					get_cmsg->cmsg_len, get_cmsg->cmsg_level, get_cmsg->cmsg_type);
 			}
 		}
 	}
 	return res;
+}
+
+int print_info(struct msghdr *my_hdr)
+{
+	struct in_pktinfo pktinfo;
+	struct in6_pktinfo pktinfo6;
+	char addr_str[INET6_ADDRSTRLEN]; /* see man inet_ntop(3) */
+
+	int addr_family = pktinfo_get(my_hdr, &pktinfo, &pktinfo6);
+
+	if (addr_family == AF_INET) {
+		if (!inet_ntop(addr_family, (void*)&pktinfo.ipi_spec_dst, addr_str, sizeof(addr_str)))
+			perror("inet_ntop");
+	} else if (addr_family == AF_INET6) {
+		if (!inet_ntop(addr_family, (void*)&pktinfo6.ipi6_addr, addr_str, sizeof(addr_str)))
+			perror("inet_ntop");
+	} else {
+		printf("No destination IP data found (ancillary data)\n");
+	}
+
+	printf("Got contacted on dst addr=%s ",	addr_str);
+
+	//my_hdr->msg_name /* contains rem_addr */
+/*
+		printf("From src addr=%s port=%d\n",
+		       inet_ntoa(rem_addr.sin_addr), rem_addr.sin_port);
+*/
+
+	if (DEBUG && addr_family == AF_INET) {
+		printf(" Extra data:\n");
+		printf(" - Header destination address (pktinfo.ipi_addr)=%s\n", inet_ntoa(pktinfo.ipi_addr));
+		printf(" - Interface index (pktinfo.ipi_ifindex)=%d\n", pktinfo.ipi_ifindex);
+	}
 }
 
 int main(int argc, char *argv[])
@@ -61,7 +117,6 @@ int main(int argc, char *argv[])
 	struct iovec vec[1];
 	char cbuf[512];  /* Buffer for ancillary data */
 	char frame[8192];/* Buffer for packet data */
-	struct in_pktinfo pktinfo;
 	int c, count = 1000000;
 	uint16_t listen_port = PORT;
 	int addr_family = AF_INET6; /* Default address family */
@@ -93,7 +148,8 @@ int main(int argc, char *argv[])
 		perror("bind");
 		return 1;
 	}
-	setsockopt(fd, SOL_IP, IP_PKTINFO, &on, sizeof(on));
+	setsockopt(fd, SOL_IP, IP_PKTINFO, &on, sizeof(on)); /* man ip(7) */
+	setsockopt(fd, IPPROTO_IPV6, IPV6_RECVPKTINFO, &on, sizeof(on)); /* man ipv6(7)*/
 
 	while (1) {
 		memset(&msghdr, 0, sizeof(msghdr));
@@ -108,18 +164,8 @@ int main(int argc, char *argv[])
 		res = recvmsg(fd, &msghdr, 0);
 		if (res == -1)
 			break;
-		if (pktinfo_get(&msghdr, &pktinfo) == 0)
-			printf("Got contacted on dst addr=%s ",
-			       inet_ntoa(pktinfo.ipi_spec_dst));
-/*
-		printf("From src addr=%s port=%d\n",
-		       inet_ntoa(rem_addr.sin_addr), rem_addr.sin_port);
-*/
-		if (DEBUG) {
-			printf(" Extra data:\n");
-			printf(" - Header destination address (pktinfo.ipi_addr)=%s\n", inet_ntoa(pktinfo.ipi_addr));
-			printf(" - Interface index (pktinfo.ipi_ifindex)=%d\n", pktinfo.ipi_ifindex);
-		}
+
+		print_info(&msghdr);
 
 		printf(" Echo back packet, size=%d\n", res);
 		/* ok, just echo reply this frame.
