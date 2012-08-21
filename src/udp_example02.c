@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
 	struct msghdr msghdr;
 	struct iovec vec[1];
 	char cbuf[512];  /* Buffer for ancillary data */
-	char frame[4096];/* Buffer for packet data */
+	char frame[8192];/* Buffer for packet data */
 	struct in_pktinfo pktinfo;
 	int c, count = 1000000;
 
@@ -94,9 +94,9 @@ int main(int argc, char *argv[])
 			printf(" Extra data:\n");
 			printf(" - Header destination address (pktinfo.ipi_addr)=%s\n", inet_ntoa(pktinfo.ipi_addr));
 			printf(" - Interface index (pktinfo.ipi_ifindex)=%d\n", pktinfo.ipi_ifindex);
-			printf(" - Packet lenght:%d vec[0].iov_len:%d\n", res, vec[0].iov_len);
 		}
 
+		printf(" Echo back packet, size=%d\n", res);
 		/* ok, just echo reply this frame.
 		 * Using sendmsg() will provide IP_PKTINFO back to kernel
 		 * to let it use the 'right' source address
