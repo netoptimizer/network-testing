@@ -54,8 +54,8 @@ int main(int argc, char *argv[])
 	int res, on = 1;
 	struct msghdr msghdr;
 	struct iovec vec[1];
-	char cbuf[512];
-	char frame[4096];
+	char cbuf[512];  /* Buffer for ancillary data */
+	char frame[4096];/* Buffer for packet data */
 	struct in_pktinfo pktinfo;
 	int c, count = 1000000;
 
@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
 		msghdr.msg_iovlen = 1;
 		vec[0].iov_base = frame;
 		vec[0].iov_len = sizeof(frame);
-		msghdr.msg_name = &rem_addr;
+		msghdr.msg_name = &rem_addr; /* Remote addr, updated on recv, used on send */
 		msghdr.msg_namelen = sizeof(rem_addr);
 		res = recvmsg(fd, &msghdr, 0);
 		if (res == -1)
