@@ -1,7 +1,9 @@
 /* -*- c-file-style: "linux" -*- */
 
 /*
- * UDP example, by Eric Dumazet
+ * UDP echo program that handles the UDP multihomed IP problem.
+ *
+ * Based upon UDP example, by Eric Dumazet
  *  http://article.gmane.org/gmane.linux.network/239543
  *  http://thread.gmane.org/gmane.linux.network/239487/focus=239543
  *
