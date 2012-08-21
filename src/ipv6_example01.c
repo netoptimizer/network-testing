@@ -17,6 +17,7 @@ void error(char *msg)
 	exit(0);
 }
 
+
 int main(int argc, char *argv[])
 {
 	int sock, length, fromlen, n;
@@ -25,7 +26,7 @@ int main(int argc, char *argv[])
 
 	int portNr = 5555;
 	char buf[1024];
-	char ipv6[42];
+	char ipv6[INET6_ADDRSTRLEN]; /* see man inet_ntop(3) */
 
 	printf("Simple IPv6 UDP example\n");
 
