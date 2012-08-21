@@ -1,3 +1,5 @@
+/* -*- c-file-style: "linux" -*- */
+
 /* Simple IPv6 example, originally borrowed from stackoverflow:
     http://stackoverflow.com/questions/2455762/why-cant-i-bind-ipv6-socket-to-a-linklocal-address
  */
@@ -14,6 +16,7 @@ void error(char *msg)
 	perror(msg);
 	exit(0);
 }
+
 int main(int argc, char *argv[])
 {
 	int sock, length, fromlen, n;
@@ -56,5 +59,5 @@ int main(int argc, char *argv[])
 		n = sendto(sock,"Got your message\n",17,
 			   0,(struct sockaddr *)&from,fromlen);
 		if (n  < 0) error("sendto");
-        }
+	}
 }
