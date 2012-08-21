@@ -39,7 +39,7 @@ int pktinfo_get(struct msghdr *my_hdr, struct in_pktinfo *pktinfo)
 				memcpy(pktinfo, get_pktinfo, sizeof(*pktinfo));
 				res = 0;
 			} else if (DEBUG) {
-				fprintf(stderr, "Unknown ancillary data, len=%d, level=%d, %type=%d\n",
+				fprintf(stderr, "Unknown ancillary data, len=%d, level=%d, type=%d\n",
 				       get_cmsg->cmsg_len, get_cmsg->cmsg_level, get_cmsg->cmsg_type);
 			}
 		}
@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
 		if (c == 'c') count = atoi(optarg);
 		if (c == 'l') listen_port  = atoi(optarg);
 	}
-	printf("port %d\n", listen_port);
+	printf("Listen port %d\n", listen_port);
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(listen_port);
