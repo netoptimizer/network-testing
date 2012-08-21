@@ -23,7 +23,6 @@
 #include <arpa/inet.h>
 
 #define PORT 4040
-
 #define DEBUG 1
 
 int pktinfo_get(struct msghdr *my_hdr, struct in_pktinfo *pktinfo)
@@ -90,6 +89,13 @@ int main(int argc, char *argv[])
 			       inet_ntoa(pktinfo.ipi_spec_dst));
 		printf("From src addr=%s port=%d\n",
 		       inet_ntoa(rem_addr.sin_addr), rem_addr.sin_port);
+
+		if (DEBUG) {
+			printf(" Extra data:\n");
+			printf(" - Header destination address (pktinfo.ipi_addr)=%s\n", inet_ntoa(pktinfo.ipi_addr));
+			printf(" - Interface index (pktinfo.ipi_ifindex)=%d\n", pktinfo.ipi_ifindex);
+			printf(" - Packet lenght:%d vec[0].iov_len:%d\n", res, vec[0].iov_len);
+		}
 
 		/* ok, just echo reply this frame.
 		 * Using sendmsg() will provide IP_PKTINFO back to kernel
