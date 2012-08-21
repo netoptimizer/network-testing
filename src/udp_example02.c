@@ -32,7 +32,8 @@ int pktinfo_get(struct msghdr *my_hdr, struct in_pktinfo *pktinfo)
 		struct cmsghdr *get_cmsg;
 		for (get_cmsg = CMSG_FIRSTHDR(my_hdr); get_cmsg;
 		     get_cmsg = CMSG_NXTHDR(my_hdr, get_cmsg)) {
-			if (get_cmsg->cmsg_type == IP_PKTINFO) {
+			if (get_cmsg->cmsg_level == IPPROTO_IP &&
+			    get_cmsg->cmsg_type == IP_PKTINFO) {
 				struct in_pktinfo *get_pktinfo = (struct in_pktinfo *)CMSG_DATA(get_cmsg);
 				memcpy(pktinfo, get_pktinfo, sizeof(*pktinfo));
 				res = 0;
