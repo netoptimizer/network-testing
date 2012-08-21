@@ -2,6 +2,9 @@
 
 /*
  * UDP echo program that handles the UDP multihomed IP problem.
+ *  - For both IPv4 and IPv6
+ *
+ * Author: Jesper Dangaard Brouer <brouer@redhat.com>
  *
  * Based upon UDP example, by Eric Dumazet
  *  http://article.gmane.org/gmane.linux.network/239543
@@ -51,8 +54,8 @@ int pktinfo_get(struct msghdr *my_hdr, struct in_pktinfo *pktinfo)
 
 int main(int argc, char *argv[])
 {
-	int fd = socket(AF_INET, SOCK_DGRAM, 0);
-	struct sockaddr_in addr, rem_addr;
+	int fd;
+	struct sockaddr_storage addr, rem_addr; /* Can contain both sockaddr_in and sockaddr_in6 */
 	int res, on = 1;
 	struct msghdr msghdr;
 	struct iovec vec[1];
@@ -61,15 +64,31 @@ int main(int argc, char *argv[])
 	struct in_pktinfo pktinfo;
 	int c, count = 1000000;
 	uint16_t listen_port = PORT;
+	int addr_family = AF_INET6; /* Default address family */
 
-	while ((c = getopt(argc, argv, "c:l:")) != -1) {
+	while ((c = getopt(argc, argv, "c:l:64")) != -1) {
 		if (c == 'c') count = atoi(optarg);
 		if (c == 'l') listen_port  = atoi(optarg);
+		if (c == '4') addr_family = AF_INET;
+		if (c == '6') addr_family = AF_INET6;
 	}
-	printf("port %d\n", listen_port);
+
+	fd = socket(addr_family, SOCK_DGRAM, 0);
+
 	memset(&addr, 0, sizeof(addr));
-	addr.sin_family = AF_INET;
-	addr.sin_port = htons(listen_port);
+
+	if (addr_family == AF_INET) {
+		struct sockaddr_in *addr4 = (struct sockaddr_in *)&addr;
+		addr4->sin_family = addr_family;
+		addr4->sin_port   = htons(listen_port);
+	} else if (addr_family == AF_INET6) {
+		struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *)&addr;
+		addr6->sin6_family= addr_family;
+		addr6->sin6_port  = htons(listen_port);
+		// addr6->sin6_addr  = in6addr_any;
+		// inet_pton( AF_INET6, "::", (void *)&addr6->sin6_addr.s6_addr);
+	}
+
 	if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
 		perror("bind");
 		return 1;
@@ -92,9 +111,10 @@ int main(int argc, char *argv[])
 		if (pktinfo_get(&msghdr, &pktinfo) == 0)
 			printf("Got contacted on dst addr=%s ",
 			       inet_ntoa(pktinfo.ipi_spec_dst));
+/*
 		printf("From src addr=%s port=%d\n",
 		       inet_ntoa(rem_addr.sin_addr), rem_addr.sin_port);
-
+*/
 		if (DEBUG) {
 			printf(" Extra data:\n");
 			printf(" - Header destination address (pktinfo.ipi_addr)=%s\n", inet_ntoa(pktinfo.ipi_addr));
