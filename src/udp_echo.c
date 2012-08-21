@@ -1,7 +1,7 @@
 /* -*- c-file-style: "linux" -*- */
 
 /*
- * UDP echo program that handles the UDP multihomed IP problem.
+ * UDP echo program that handles the UDP multihomed problem.
  *  - For both IPv4 and IPv6
  *
  * Author: Jesper Dangaard Brouer <brouer@redhat.com>
@@ -29,8 +29,9 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 
-#define PORT 4040
+#define PORT 4040 /* Default port, change with option "-l" */
 #define DEBUG 1
+static volatile int verbose = 1;
 
 void error(char *msg)
 {
@@ -63,8 +64,8 @@ int pktinfo_get(struct msghdr *my_hdr, struct in_pktinfo *pktinfo, struct in6_pk
 			} else if (get_cmsg->cmsg_level == IPPROTO_IPV6 &&
 				   get_cmsg->cmsg_type  == IPV6_PKTINFO
 				) {
-				struct in6_pktinfo *get_pktinfo6 = (struct in6_pktinfo *)CMSG_DATA(get_cmsg);
-				memcpy(pktinfo6, get_pktinfo6, sizeof(*pktinfo6));
+				struct in6_pktinfo *get_pktinfo = (struct in6_pktinfo *)CMSG_DATA(get_cmsg);
+				memcpy(pktinfo6, get_pktinfo, sizeof(*pktinfo6));
 				res = AF_INET6;
 			} else if (DEBUG) {
 				fprintf(stderr, "Unknown ancillary data, len=%d, level=%d, type=%d\n",
@@ -79,29 +80,38 @@ int print_info(struct msghdr *my_hdr)
 {
 	struct in_pktinfo pktinfo;
 	struct in6_pktinfo pktinfo6;
-	char addr_str[INET6_ADDRSTRLEN]; /* see man inet_ntop(3) */
+	char to_addr[INET6_ADDRSTRLEN]; /* see man inet_ntop(3) */
+	char from_addr[INET6_ADDRSTRLEN];
+	uint16_t rem_port;
 
 	int addr_family = pktinfo_get(my_hdr, &pktinfo, &pktinfo6);
 
+	/* msghdr->msg_name -- contains remote addr pointer */
 	if (addr_family == AF_INET) {
-		if (!inet_ntop(addr_family, (void*)&pktinfo.ipi_spec_dst, addr_str, sizeof(addr_str)))
+		struct sockaddr_in *rem_addr = (struct sockaddr_in *) my_hdr->msg_name;
+		rem_port = rem_addr->sin_port;
+		if (!inet_ntop(addr_family, (void*)&rem_addr->sin_addr, from_addr, sizeof(from_addr)))
 			perror("inet_ntop");
+		if (!inet_ntop(addr_family, (void*)&pktinfo.ipi_spec_dst, to_addr, sizeof(to_addr)))
+			perror("inet_ntop");
+		//printf(" From src addr=%s port=%d\n", inet_ntoa(rem_addr->sin_addr), htons(rem_addr->sin_port));
+
 	} else if (addr_family == AF_INET6) {
-		if (!inet_ntop(addr_family, (void*)&pktinfo6.ipi6_addr, addr_str, sizeof(addr_str)))
+		struct sockaddr_in6 *rem_addr = (struct sockaddr_in6 *) my_hdr->msg_name;
+		rem_port = rem_addr->sin6_port;
+		if (!inet_ntop(addr_family, (void*)&rem_addr->sin6_addr, from_addr, sizeof(from_addr)))
+			perror("inet_ntop");
+		if (!inet_ntop(addr_family, (void*)&pktinfo6.ipi6_addr, to_addr, sizeof(to_addr)))
 			perror("inet_ntop");
 	} else {
-		printf("No destination IP data found (ancillary data)\n");
+		fprintf(stderr, "No destination IP data found (ancillary data)\n");
 	}
 
-	printf("Got contacted on dst addr=%s ",	addr_str);
+	printf("Got contacted on dst addr=%s ", to_addr);
+	printf("From src addr=%s ", from_addr);
+	printf("port=%d\n", htons(rem_port));
 
-	//my_hdr->msg_name /* contains rem_addr */
-/*
-		printf("From src addr=%s port=%d\n",
-		       inet_ntoa(rem_addr.sin_addr), rem_addr.sin_port);
-*/
-
-	if (DEBUG && addr_family == AF_INET) {
+	if (DEBUG && verbose && addr_family == AF_INET) {
 		printf(" Extra data:\n");
 		printf(" - Header destination address (pktinfo.ipi_addr)=%s\n", inet_ntoa(pktinfo.ipi_addr));
 		printf(" - Interface index (pktinfo.ipi_ifindex)=%d\n", pktinfo.ipi_ifindex);
@@ -121,11 +131,12 @@ int main(int argc, char *argv[])
 	uint16_t listen_port = PORT;
 	int addr_family = AF_INET6; /* Default address family */
 
-	while ((c = getopt(argc, argv, "c:l:64")) != -1) {
+	while ((c = getopt(argc, argv, "c:l:64v:")) != -1) {
 		if (c == 'c') count = atoi(optarg);
 		if (c == 'l') listen_port  = atoi(optarg);
 		if (c == '4') addr_family = AF_INET;
 		if (c == '6') addr_family = AF_INET6;
+		if (c == 'v') verbose = atoi(optarg);
 	}
 
 	fd = socket(addr_family, SOCK_DGRAM, 0);
@@ -148,6 +159,8 @@ int main(int argc, char *argv[])
 		perror("bind");
 		return 1;
 	}
+
+	/* Socket options to get data on local destination IP */
 	setsockopt(fd, SOL_IP, IP_PKTINFO, &on, sizeof(on)); /* man ip(7) */
 	setsockopt(fd, IPPROTO_IPV6, IPV6_RECVPKTINFO, &on, sizeof(on)); /* man ipv6(7)*/
 
@@ -165,9 +178,10 @@ int main(int argc, char *argv[])
 		if (res == -1)
 			break;
 
-		print_info(&msghdr);
-
-		printf(" Echo back packet, size=%d\n", res);
+		if (verbose > 0) {
+			print_info(&msghdr);
+			printf(" Echo back packet, size=%d\n", res);
+		}
 		/* ok, just echo reply this frame.
 		 * Using sendmsg() will provide IP_PKTINFO back to kernel
 		 * to let it use the 'right' source address
