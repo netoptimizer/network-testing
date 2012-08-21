@@ -24,6 +24,8 @@
 
 #define PORT 4040
 
+#define DEBUG 1
+
 int pktinfo_get(struct msghdr *my_hdr, struct in_pktinfo *pktinfo)
 {
 	int res = -1;
@@ -37,6 +39,9 @@ int pktinfo_get(struct msghdr *my_hdr, struct in_pktinfo *pktinfo)
 				struct in_pktinfo *get_pktinfo = (struct in_pktinfo *)CMSG_DATA(get_cmsg);
 				memcpy(pktinfo, get_pktinfo, sizeof(*pktinfo));
 				res = 0;
+			} else if (DEBUG) {
+				printf("Unknown ancillary data, len=%d, level=%d, %type=%d\n",
+				       get_cmsg->cmsg_len, get_cmsg->cmsg_level, get_cmsg->cmsg_type);
 			}
 		}
 	}
