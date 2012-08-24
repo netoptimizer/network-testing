@@ -5,6 +5,8 @@
  *
  * TODO:
  *  - Set socket options to "encourage" fragmentation
+ *  - Impl. recv message, but with a timeout option
+ *  - Can we recv ICMP err messages?
  */
 #include <sys/types.h>
 #include <sys/socket.h>
