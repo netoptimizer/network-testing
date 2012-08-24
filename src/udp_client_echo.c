@@ -19,6 +19,37 @@
 #define PORT 4040 /* Default port, change with option "-p" */
 static volatile int verbose = 1;
 
+void setup_sockaddr(int addr_family, struct sockaddr_storage *addr,
+		   char *ip_str, uint16_t port)
+{
+	struct sockaddr_in  *addr_v4; /* Pointer for IPv4 type casting */
+	struct sockaddr_in6 *addr_v6; /* Pointer for IPv6 type casting */
+	int res;
+
+	/* Setup sockaddr depending on IPv4 or IPv6 address */
+	if (addr_family == AF_INET6) {
+		addr_v6 = (struct sockaddr_in6*) addr;
+		addr_v6->sin6_family= addr_family;
+		addr_v6->sin6_port  = htons(port);
+		res = inet_pton(AF_INET6, ip_str, &addr_v6->sin6_addr);
+	} else if (addr_family == AF_INET) {
+		addr_v4 = (struct sockaddr_in*) addr;
+		addr_v4->sin_family = addr_family;
+		addr_v4->sin_port   = htons(port);
+		res = inet_pton(AF_INET, ip_str, &(addr_v4->sin_addr));
+	} else {
+		fprintf(stderr, "ERROR: Unsupported addr_family\n");
+		exit(3);
+	}
+	if (res <= 0) {
+		if (res == 0)
+			fprintf(stderr, "ERROR: IP \"%s\"not in presentation format\n", ip_str);
+		else
+			perror("inet_pton");
+		exit(4);
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	int sockfd;
@@ -26,13 +57,10 @@ int main(int argc, char *argv[])
 	int opt;
 	int addr_family = AF_INET6; /* Default address family */
 	uint16_t dest_port = PORT;
-	int res;
 	char *dest_ip;
 
 	/* Adding support for both IPv4 and IPv6 */
 	struct sockaddr_storage dest_addr; /* Can contain both sockaddr_in and sockaddr_in6 */
-	struct sockaddr_in  *dest_addr_v4; /* Pointer for IPv4 type casting */
-	struct sockaddr_in6 *dest_addr_v6; /* Pointer for IPv6 type casting */
 	memset(&dest_addr, 0, sizeof(dest_addr));
 
 	while ((opt = getopt(argc, argv, "s:64v:p:")) != -1) {
@@ -51,27 +79,5 @@ int main(int argc, char *argv[])
 		printf("Destination IP:%s port:%d\n", dest_ip, dest_port);
 
 	/* Setup dest_addr depending on IPv4 or IPv6 address */
-	if (addr_family == AF_INET6) {
-		dest_addr_v6 = (struct sockaddr_in6*) &dest_addr;
-		dest_addr_v6->sin6_family= addr_family;
-		dest_addr_v6->sin6_port  = htons(dest_port);
-		res = inet_pton(AF_INET6, dest_ip, &dest_addr_v6->sin6_addr);
-	} else if (addr_family == AF_INET) {
-		dest_addr_v4 = (struct sockaddr_in*) &dest_addr;
-		dest_addr_v4->sin_family = addr_family;
-		dest_addr_v4->sin_port   = htons(dest_port);
-		res = inet_pton(AF_INET, dest_ip, &(dest_addr_v4->sin_addr));
-	} else {
-		fprintf(stderr, "ERROR: Unsupported addr_family\n");
-		exit(3);
-	}
-	if (res <= 0) {
-		if (res == 0)
-			fprintf(stderr, "ERROR: IP \"%s\"not in presentation format\n", dest_ip);
-		else
-			perror("inet_pton");
-		exit(4);
-	}
-
-
+	setup_sockaddr(addr_family, &dest_addr, dest_ip, dest_port);
 }
