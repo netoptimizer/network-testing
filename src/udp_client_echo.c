@@ -19,7 +19,7 @@
 #include <arpa/inet.h>
 
 #define PORT 4040 /* Default port, change with option "-p" */
-static volatile int verbose = 1;
+static volatile int verbose = 2;
 
 void setup_sockaddr(int addr_family, struct sockaddr_storage *addr,
 		   char *ip_str, uint16_t port)
@@ -74,17 +74,38 @@ int send_packet(int sockfd, const struct sockaddr_storage *dest_addr,
 		    uint16_t pkt_size)
 {
 	socklen_t len_addr = sockaddr_len(dest_addr);
-	char buf[65535];
-	int len;
-	len = sendto(sockfd, buf, pkt_size, 0, (const struct sockaddr*) dest_addr, len_addr);
-	if (len < 0) {
-		fprintf(stderr, "ERROR: %s() sendto failed (%d)\n", __func__, len);
+	char buf_send[65535], buf_recv[65535];
+	int len_send, len_recv;
+	/* -- Send packet -- */
+	len_send = sendto(sockfd, buf_send, pkt_size, 0, (const struct sockaddr*) dest_addr, len_addr);
+	if (len_send < 0) {
+		fprintf(stderr, "ERROR: %s() sendto failed (%d)\n", __func__, len_send);
 		perror("sendto");
 		exit(5);
 	}
-	if (verbose > 0) {
-		printf("%s(): Send UDP packet of length:%d\n", __func__, len);
+	if (verbose > 1) {
+		printf("Send UDP packet of length:%d\n", len_send);
 	}
+
+	/* -- Receive packet -- */
+	if (verbose > 1) {
+		printf("Waiting for recvfrom()\n");
+	}
+	len_recv = recvfrom(sockfd, buf_recv, len_send, 0, NULL, NULL);
+	if (len_recv < 0) {
+		perror("recvfrom");
+		exit(5);
+	}
+	if (verbose > 1) {
+		printf("Recieved UDP packet of length:%d\n", len_recv);
+	}
+
+	/* Verify message */
+	if (len_recv != len_send) {
+		fprintf(stderr, "ERROR - Packet validation failed: size check\n");
+		exit(1);
+	}
+	printf("OK: valid size\n");
 }
 
 int main(int argc, char *argv[])
