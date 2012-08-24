@@ -1,10 +1,10 @@
 /* -*- c-file-style: "linux" -*- */
 
-/* TODO:
+/*
  * IPv6 UDP client that expects an echo reply of its own packet
+ *  - Set socket options to "encourage" fragmentation
  *
  * TODO:
- *  - Set socket options to "encourage" fragmentation
  *  - Impl. recv message, but with a timeout option
  *  - Can we recv ICMP err messages?
  */
@@ -79,8 +79,8 @@ int send_packet(int sockfd, const struct sockaddr_storage *dest_addr,
 	/* -- Send packet -- */
 	len_send = sendto(sockfd, buf_send, pkt_size, 0, (const struct sockaddr*) dest_addr, len_addr);
 	if (len_send < 0) {
-		fprintf(stderr, "ERROR: %s() sendto failed (%d)\n", __func__, len_send);
-		perror("sendto");
+		fprintf(stderr, "ERROR: %s() sendto failed (%d) ", __func__, len_send);
+		perror("- sendto");
 		exit(5);
 	}
 	if (verbose > 1) {
@@ -106,6 +106,17 @@ int send_packet(int sockfd, const struct sockaddr_storage *dest_addr,
 		exit(1);
 	}
 	printf("OK: valid size\n");
+}
+
+/* Err handle wrapper for setsockopt */
+int Setsockopt (int fd, int level, int optname, const void *optval, socklen_t optlen)
+{
+	int res = setsockopt(fd, level, optname, optval, optlen);
+	if (res < 0) {
+		fprintf(stderr, "ERROR: %s() failed (%d) ", __func__, res);
+		perror("- setsockopt");
+		exit(10);
+	}
 }
 
 int main(int argc, char *argv[])
@@ -136,10 +147,16 @@ int main(int argc, char *argv[])
 	if (verbose > 0)
 		printf("Destination IP:%s port:%d\n", dest_ip, dest_port);
 
+	sockfd = socket(addr_family, SOCK_DGRAM, 0);
+
+	/* Socket options, see man-pages ip(7) and ipv6(7) */
+	//int set_pmtu_disc = IP_PMTUDISC_DO; /* do PMTU = Don't Fragment */
+	int set_pmtu_disc = IP_PMTUDISC_DONT; /* Allow fragments, dont do PMTU */
+	Setsockopt(sockfd, IPPROTO_IP,   IP_MTU_DISCOVER,   &set_pmtu_disc, sizeof(int));
+	Setsockopt(sockfd, IPPROTO_IPV6, IPV6_MTU_DISCOVER, &set_pmtu_disc, sizeof(int));
+
 	/* Setup dest_addr depending on IPv4 or IPv6 address */
 	setup_sockaddr(addr_family, &dest_addr, dest_ip, dest_port);
-
-	sockfd = socket(addr_family, SOCK_DGRAM, 0);
 
 	send_packet(sockfd, &dest_addr, pkt_size);
 }
