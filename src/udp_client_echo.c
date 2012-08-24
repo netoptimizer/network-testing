@@ -71,11 +71,10 @@ socklen_t sockaddr_len(const struct sockaddr_storage *sockaddr)
 }
 
 int send_packet(int sockfd, const struct sockaddr_storage *dest_addr,
-		    uint16_t pkt_size)
+		char *buf_send, uint16_t pkt_size)
 {
 	socklen_t len_addr = sockaddr_len(dest_addr);
-	char buf_send[65535], buf_recv[65535];
-	int len_send, len_recv;
+	int len_send;
 	/* -- Send packet -- */
 	len_send = sendto(sockfd, buf_send, pkt_size, 0, (const struct sockaddr*) dest_addr, len_addr);
 	if (len_send < 0) {
@@ -86,12 +85,20 @@ int send_packet(int sockfd, const struct sockaddr_storage *dest_addr,
 	if (verbose > 1) {
 		printf("Send UDP packet of length:%d\n", len_send);
 	}
+	return len_send;
+}
+
+int recv_packet(int sockfd, const struct sockaddr_storage *dest_addr,
+		char *buf_recv, uint16_t pkt_size)
+{
+	/* Notes: dest_addr will be used for validating (later)*/
+	int len_recv;
 
 	/* -- Receive packet -- */
 	if (verbose > 1) {
 		printf("Waiting for recvfrom()\n");
 	}
-	len_recv = recvfrom(sockfd, buf_recv, len_send, 0, NULL, NULL);
+	len_recv = recvfrom(sockfd, buf_recv, pkt_size, 0, NULL, NULL);
 	if (len_recv < 0) {
 		perror("recvfrom");
 		exit(5);
@@ -99,7 +106,11 @@ int send_packet(int sockfd, const struct sockaddr_storage *dest_addr,
 	if (verbose > 1) {
 		printf("Recieved UDP packet of length:%d\n", len_recv);
 	}
+	return len_recv;
+}
 
+int validate_packet(int len_send, int len_recv, char* buf_send, char* buf_recv)
+{
 	/* Verify message */
 	if (len_recv != len_send) {
 		fprintf(stderr, "ERROR - Packet validation failed: size check\n");
@@ -127,6 +138,8 @@ int main(int argc, char *argv[])
 	int addr_family = AF_INET6; /* Default address family */
 	uint16_t dest_port = PORT;
 	char *dest_ip;
+	int len_send, len_recv;
+	char buf_send[65535], buf_recv[65535];
 
 	/* Adding support for both IPv4 and IPv6 */
 	struct sockaddr_storage dest_addr; /* Can contain both sockaddr_in and sockaddr_in6 */
@@ -158,5 +171,7 @@ int main(int argc, char *argv[])
 	/* Setup dest_addr depending on IPv4 or IPv6 address */
 	setup_sockaddr(addr_family, &dest_addr, dest_ip, dest_port);
 
-	send_packet(sockfd, &dest_addr, pkt_size);
+	len_send = send_packet(sockfd, &dest_addr, buf_send, pkt_size);
+	len_recv = recv_packet(sockfd, &dest_addr, buf_recv, len_send);
+	validate_packet(len_send, len_recv, buf_send, buf_recv);
 }
