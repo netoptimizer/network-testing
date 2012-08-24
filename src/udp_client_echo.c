@@ -50,10 +50,45 @@ void setup_sockaddr(int addr_family, struct sockaddr_storage *addr,
 	}
 }
 
+socklen_t sockaddr_len(const struct sockaddr_storage *sockaddr)
+{
+	socklen_t len_addr = 0;
+	switch (sockaddr->ss_family) {
+	case AF_INET:
+		len_addr = sizeof(struct sockaddr_in);
+		break;
+	case AF_INET6:
+		len_addr = sizeof(struct sockaddr_in6);
+		break;
+	default:
+		fprintf(stderr, "ERROR: %s(): Cannot determine lenght of addr_family(%d)",
+                        __func__, sockaddr->ss_family);
+		exit(4);
+	}
+	return len_addr;
+}
+
+int send_packet(int sockfd, const struct sockaddr_storage *dest_addr,
+		    uint16_t pkt_size)
+{
+	socklen_t len_addr = sockaddr_len(dest_addr);
+	char buf[65535];
+	int len;
+	len = sendto(sockfd, buf, pkt_size, 0, (const struct sockaddr*) dest_addr, len_addr);
+	if (len < 0) {
+		fprintf(stderr, "ERROR: %s() sendto failed (%d)\n", __func__, len);
+		perror("sendto");
+		exit(5);
+	}
+	if (verbose > 0) {
+		printf("%s(): Send UDP packet of length:%d\n", __func__, len);
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	int sockfd;
-	int size = 3000;
+	int pkt_size = 3000;
 	int opt;
 	int addr_family = AF_INET6; /* Default address family */
 	uint16_t dest_port = PORT;
@@ -64,7 +99,7 @@ int main(int argc, char *argv[])
 	memset(&dest_addr, 0, sizeof(dest_addr));
 
 	while ((opt = getopt(argc, argv, "s:64v:p:")) != -1) {
-		if (opt == 's') size = atoi(optarg);
+		if (opt == 's') pkt_size = atoi(optarg);
 		if (opt == '4') addr_family = AF_INET;
 		if (opt == '6') addr_family = AF_INET6;
 		if (opt == 'v') verbose = atoi(optarg);
@@ -80,4 +115,8 @@ int main(int argc, char *argv[])
 
 	/* Setup dest_addr depending on IPv4 or IPv6 address */
 	setup_sockaddr(addr_family, &dest_addr, dest_ip, dest_port);
+
+	sockfd = socket(addr_family, SOCK_DGRAM, 0);
+
+	send_packet(sockfd, &dest_addr, pkt_size);
 }
