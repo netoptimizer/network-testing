@@ -19,14 +19,13 @@ from scapy.all import *
 
 srcip = None
 dstip = None
+dstport = 5555
 
-def ipv6_udp_frag(srcip,dstip):
+def ipv6_udp_frag(srcip,dstip,dst_port):
 
     # ether
     eth_fvm05=Ether(dst="52:54:bb:cc:dd:05") # mac of fvm05%eth1
     eth_fvm03=Ether(dst="52:54:bb:cc:dd:03") # mac of fvm03%eth1
-
-    dst_port=5555
 
     #IPv6 parameters
     #sip="fee0:200::106" (now srcip)
@@ -104,11 +103,12 @@ if __name__ == "__main__":
         sys.exit(1)
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], 'hs:d:')
+        opts, args = getopt.getopt(sys.argv[1:], 'hs:d:p:')
         for o, a in opts:
             if o == '-h': usage()
             elif o == '-s': srcip = a
             elif o == '-d': dstip = a
+            elif o == '-p': dstport = a
             else: raise Warning, 'EDOOFUS - Programming error'
     except getopt.GetoptError, e:
         usage(e)
@@ -116,4 +116,4 @@ if __name__ == "__main__":
     if not srcip or not dstip:
         usage("Must specify source (-s) and destination (-d)")
 
-    ipv6_udp_frag(srcip,dstip)
+    ipv6_udp_frag(srcip,dstip,dstport)
