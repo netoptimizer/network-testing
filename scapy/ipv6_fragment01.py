@@ -1,14 +1,26 @@
 #!/usr/bin/python
+"""
+# Want to construct a:
+#  Fragmented IPv6 UDP packet
 
 # Based on example from:
 #  https://media.blackhat.com/bh-eu-12/Atlasis/bh-eu-12-Atlasis-Attacking_IPv6-Slides.pdf
 
+Usage:
+    -s source address
+    -d destination address
+
+"""
+
+import getopt
+import sys
+
 from scapy.all import *
 
-# Want to construct a:
-#  Fragmented IPv6 UDP packet
+srcip = None
+dstip = None
 
-def ipv6_udp_frag():
+def ipv6_udp_frag(srcip,dstip):
 
     # ether
     eth_fvm05=Ether(dst="52:54:bb:cc:dd:05") # mac of fvm05%eth1
@@ -17,9 +29,9 @@ def ipv6_udp_frag():
     dst_port=5555
 
     #IPv6 parameters
-    sip="fee0:200::106"
+    #sip="fee0:200::106" (now srcip)
     #dip="fee0:200::42"
-    dip="fee0:cafe::42"
+    #dip="fee0:cafe::42" (now dstip)
     #dip="fee0:cafe::102"
     #conf.route6.add("::",gw="fee0:200::1")
     conf.route6.add("fee0:cafe::/64",gw="fee0:200::1")
@@ -28,7 +40,7 @@ def ipv6_udp_frag():
     payload2="BBBBBBBB"
     payload3="CCCCCCCC"
     payload_all="AAAAAAAABBBBBBBBCCCCCCCC"
-    ipv6_1=IPv6(src=sip, dst=dip, plen=16)
+    ipv6_1=IPv6(src=srcip, dst=dstip, plen=16)
     #icmpv6=ICMPv6EchoRequest(cksum=0x7d2b) 
 
     # Calculate/find the correct checksum
@@ -86,4 +98,22 @@ def ipv6_udp_frag():
             sendp(eth_fvm03/csum_pkt0)
 
 if __name__ == "__main__":
-    ipv6_udp_frag()
+    def usage(msg=None):
+        if msg: sys.stderr.write('%s: %s\n' % (sys.argv[0], msg))
+        sys.stderr.write(__doc__)
+        sys.exit(1)
+
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], 'hs:d:')
+        for o, a in opts:
+            if o == '-h': usage()
+            elif o == '-s': srcip = a
+            elif o == '-d': dstip = a
+            else: raise Warning, 'EDOOFUS - Programming error'
+    except getopt.GetoptError, e:
+        usage(e)
+
+    if not srcip or not dstip:
+        usage("Must specify source (-s) and destination (-d)")
+
+    ipv6_udp_frag(srcip,dstip)
