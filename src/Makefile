@@ -2,7 +2,7 @@
 #
 #  Author: Jesper Dangaard Brouer <brouer@redhat.com>
 #
-SRCS = ipv6_example01.c udp_example02.c udp_echo.c
+SRCS = ipv6_example01.c udp_example02.c udp_echo.c udp_client_echo.c
 
 TARGETS = ${SRCS:.c=}
 
