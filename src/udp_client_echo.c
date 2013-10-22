@@ -7,6 +7,7 @@
  * TODO:
  *  - Impl. recv message, but with a timeout option
  *  - Can we recv ICMP err messages?
+ *  - Can we detect if GSO has been enabled? (this can be a problem with KVM)
  */
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -91,7 +92,10 @@ int send_packet(int sockfd, const struct sockaddr_storage *dest_addr,
 int recv_packet(int sockfd, const struct sockaddr_storage *dest_addr,
 		char *buf_recv, uint16_t pkt_size)
 {
-	/* Notes: dest_addr will be used for validating (later)*/
+	/* Notes: dest_addr will be used for validating against from_addr */
+	socklen_t len_addr = sockaddr_len(dest_addr);
+	// struct sockaddr *from_addr;
+
 	int len_recv;
 
 	/* -- Receive packet -- */
