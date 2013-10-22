@@ -7,8 +7,9 @@
 #  https://media.blackhat.com/bh-eu-12/Atlasis/bh-eu-12-Atlasis-Attacking_IPv6-Slides.pdf
 
 Usage:
-    -s source address
-    -d destination address
+    -s source IPv6 address
+    -d destination IPv6 address
+    -p destination port
 
 """
 
@@ -108,7 +109,7 @@ if __name__ == "__main__":
             if o == '-h': usage()
             elif o == '-s': srcip = a
             elif o == '-d': dstip = a
-            elif o == '-p': dstport = a
+            elif o == '-p': dstport = int(a)
             else: raise Warning, 'EDOOFUS - Programming error'
     except getopt.GetoptError, e:
         usage(e)
