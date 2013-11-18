@@ -32,20 +32,29 @@ function proc_cmd() {
     local proc_file=$1
     # after shift, the remaining args are contained in $@
     shift
-    local proc_ctrl=${PROCDIR}/$proc_file
+    local proc_ctrl=${PROC_DIR}/$proc_file
+    if [ ! -e "$proc_ctrl" ]; then
+	echo "- ERROR - proc file:$proc_ctrl does not exists!"
+	exit 1
+    else
+	if [ ! -w "$proc_ctrl" ]; then
+	    echo "- ERROR - proc file:$proc_ctrl not writable, not root?!"
+	    exit 1
+	fi
+    fi
 
     if [ "$DEBUG" == "yes" ]; then
 	echo "cmd: $@ > $proc_ctrl"
     fi
     # Quoting of "$@" is important for space expansion
-    echo "$@" > $PGDEV
+    echo "$@" > "$proc_ctrl"
 
     # FIXME: Why "fgrep"
     result=`cat $proc_ctrl | fgrep "Result: OK:"`
     # FIXME: Use the shell $? exit code instead
     if [ "$result" = "" ]; then
 	echo " - WARNING - failed pktgen cmd: $@ > $proc_ctrl"
-        cat $PGDEV | fgrep Result:
+        cat $proc_ctrl | fgrep Result:
     fi
 }
 
@@ -72,9 +81,8 @@ function dev_cmd() {
 ## -- Pgcontrol commands -- ##
 
 function start_run() {
-    PGDEV=/proc/net/pktgen/pgctrl
     echo "Running... ctrl^C to stop"
-    pgset "start"
+    pgctrl_cmd "start"
     echo "Done"
 
 }
@@ -113,7 +121,7 @@ function add_device() {
     fi
     local dev="$1"
 
-    echo "Removing all devices from $PGDEV"
+    echo "Removing all devices from thread $PGDEV"
     pgset "rem_device_all"
     echo "Adding ${dev}"
     pgset "add_device ${dev}"
