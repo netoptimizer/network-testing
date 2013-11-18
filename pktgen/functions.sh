@@ -1,11 +1,12 @@
 #
-#
 # Common functions used by pktgen scripts
 #
 
-if [ ! -d /prc/net/pktgen ]; then
+if [ ! -d /proc/net/pktgen ]; then
         modprobe pktgen
 fi
+
+## -- Generic proc commands -- ##
 
 function pgset() {
     local result
@@ -21,11 +22,64 @@ function pgset() {
     fi
 }
 
-function pg() {
-    echo inject > $PGDEV
-    cat $PGDEV
+export PROC_DIR=/proc/net/pktgen
+
+# More generic replacement for pgset(), that does not depend on global
+# variable for proc file.
+#
+function proc_cmd() {
+    local result
+    local proc_file=$1
+    # after shift, the remaining args are contained in $@
+    shift
+    local proc_ctrl=${PROCDIR}/$proc_file
+
+    if [ "$DEBUG" == "yes" ]; then
+	echo "cmd: $@ > $proc_ctrl"
+    fi
+    # Quoting of "$@" is important for space expansion
+    echo "$@" > $PGDEV
+
+    # FIXME: Why "fgrep"
+    result=`cat $proc_ctrl | fgrep "Result: OK:"`
+    # FIXME: Use the shell $? exit code instead
+    if [ "$result" = "" ]; then
+	echo " - WARNING - failed pktgen cmd: $@ > $proc_ctrl"
+        cat $PGDEV | fgrep Result:
+    fi
 }
 
+function thread_cmd() {
+    local thread=$1
+    local proc_file="kpktgend_${thread}"
+    shift
+    proc_cmd ${proc_file} "$@"
+}
+
+function pgctrl_cmd() {
+    local proc_file="pgctrl"
+    proc_cmd ${proc_file} "$@"
+}
+
+function dev_cmd() {
+    local dev=$1
+    local thread=$1
+    local proc_file=""
+    shift
+    proc_cmd ${proc_file} "$@"
+}
+
+## -- Pgcontrol commands -- ##
+
+function start_run() {
+    PGDEV=/proc/net/pktgen/pgctrl
+    echo "Running... ctrl^C to stop"
+    pgset "start"
+    echo "Done"
+
+}
+
+## -- Thread control commands -- ##
 
 function remove_thread() {
     if [ -z "$1" ]; then
@@ -52,7 +106,6 @@ function remove_threads() {
     done
 }
 
-
 function add_device() {
     if [ -z "$1" ]; then
 	echo "[$FUNCNAME] needs device arg"
@@ -66,13 +119,37 @@ function add_device() {
     pgset "add_device ${dev}"
 }
 
-function start_run() {
-    PGDEV=/proc/net/pktgen/pgctrl
-    echo "Running... ctrl^C to stop"
-    pgset "start"
-    echo "Done"
+function create_thread() {
+    if [ -z "$1" ]; then
+        echo "[$FUNCNAME] require input dev (optional) and number"
+        exit 2
+    fi
+    local dev=$1
+    local num=$2
 
+    PGDEV=/proc/net/pktgen/kpktgend_${num}
+    if [ -n "$num" ]; then
+	add_device "${dev}@${num}"
+    else
+	add_device "${dev}"
+    fi
 }
+
+function create_threads() {
+    if [ -z "$2" ]; then
+        echo "[$FUNCNAME] require input dev, (thread-range) min and max"
+        exit 2
+    fi
+    local dev=$1
+    local min=$2
+    local max=$3
+
+    for num in `seq $min $max`; do
+	create_thread ${dev} ${num}
+    done
+}
+
+## -- Device commands -- ##
 
 # Common config for a dev
 function base_config() {
@@ -157,45 +234,3 @@ function set_udp_dst_range() {
     pgset "udp_dst_max $max"
 }
 
-
-
-
-function create_thread() {
-    if [ -z "$2" ]; then
-        echo "[$FUNCNAME] require input dev and number"
-        exit 2
-    fi
-    local dev=$1
-    local num=$2
-
-    PGDEV=/proc/net/pktgen/kpktgend_${num}
-    add_device "${dev}@${num}"
-}
-
-function create_thread_old() {
-    if [ -z "$2" ]; then
-        echo "[$FUNCNAME] require input dev and number"
-        exit 2
-    fi
-    local dev=$1
-    local num=$2
-
-    PGDEV=/proc/net/pktgen/kpktgend_${num}
-#    add_device "${dev}@${num}"
-    add_device "${dev}"
-}
-
-
-function create_threads() {
-    if [ -z "$2" ]; then
-        echo "[$FUNCNAME] require input dev, (thread-range) min and max"
-        exit 2
-    fi
-    local dev=$1
-    local min=$2
-    local max=$3
-
-    for num in `seq $min $max`; do
-	create_thread ${dev} ${num}
-    done
-}
