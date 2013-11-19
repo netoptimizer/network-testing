@@ -4,34 +4,42 @@
 
 function usage() {
     echo ""
-    echo "Usage: $0 [-dv] [-s pkt_size]"
-    echo "  -v : verbose"
-    echo "  -d : debug"
+    echo "Usage: $0 [-vx] [-s pkt_size]"
     echo "  -s : packet size"
+    echo "  -d : output device"
+    echo "  -m : destination MAC-addr"
+    echo "  -v : verbose"
+    echo "  -x : debug"
     echo ""
 }
 
 ##  --- Parse command line arguments / parameters ---
 ## echo "Commandline options:"
-while getopts "s:dv" option; do
+while getopts "s:d:m:vx" option; do
     case $option in
         s)
-          echo " Packet size: \"$OPTARG\""
           export PKT_SIZE=$OPTARG
-	  echo "Packet size set to: set to: $PKT_SIZE bytes"
+	  info "Packet size set to: $PKT_SIZE bytes"
+          ;;
+        d) # device
+          export DEV=$OPTARG
+	  info "Output device set to: $DEV"
+          ;;
+        m) # MAC
+          export DST_MAC=$OPTARG
+	  info "Destination MAC set to: $DST_MAC"
           ;;
         v)
-          echo "- Verbose mode -"
+          info "- Verbose mode -"
           export VERBOSE=yes
           ;;
-        d)
-          echo "- Debug mode -"
+        x)
+          info "- Debug mode -"
           export DEBUG=yes
           ;;
         ?|*)
-          echo "[ERROR] Unknown parameters!!!"
           usage;
-          exit 2
+          err 2 "[ERROR] Unknown parameters!!!"
     esac
 done
 #shift $[ OPTIND - 1 ]
@@ -39,5 +47,10 @@ shift $(( $OPTIND - 1 ))
 
 if [ -z "$PKT_SIZE" ]; then
     export PKT_SIZE=1500
-    echo "Default packet size set to: set to: $PKT_SIZE bytes"
+    info "Default packet size set to: set to: $PKT_SIZE bytes"
+fi
+
+if [ -z "$DEV" ]; then
+    usage
+    err 2 "Please specify output device"
 fi
