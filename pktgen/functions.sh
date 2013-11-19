@@ -6,6 +6,22 @@ if [ ! -d /proc/net/pktgen ]; then
         modprobe pktgen
 fi
 
+## -- General shell logging cmds --
+function err() {
+    local exitcode=$1
+    shift
+    echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')] ERROR: $@" >&2
+    exit $exitcode
+}
+
+function warn() {
+    echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')] WARN : $@" >&2
+}
+
+function info() {
+    echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')] INFO : $@"
+}
+
 ## -- Generic proc commands -- ##
 
 function pgset() {
@@ -34,12 +50,10 @@ function proc_cmd() {
     shift
     local proc_ctrl=${PROC_DIR}/$proc_file
     if [ ! -e "$proc_ctrl" ]; then
-	echo "- ERROR - proc file:$proc_ctrl does not exists!"
-	exit 1
+	err 3 "proc file:$proc_ctrl does not exists!"
     else
 	if [ ! -w "$proc_ctrl" ]; then
-	    echo "- ERROR - proc file:$proc_ctrl not writable, not root?!"
-	    exit 1
+	    err 4 "proc file:$proc_ctrl not writable, not root?!"
 	fi
     fi
 
@@ -53,8 +67,8 @@ function proc_cmd() {
     result=`cat $proc_ctrl | fgrep "Result: OK:"`
     # FIXME: Use the shell $? exit code instead
     if [ "$result" = "" ]; then
-	echo " - WARNING - failed pktgen cmd: $@ > $proc_ctrl"
-        cat $proc_ctrl | fgrep Result:
+	warn "failed pktgen cmd: $@ > $proc_ctrl"
+        cat $proc_ctrl | fgrep Result: >&2
     fi
 }
 
@@ -81,9 +95,9 @@ function dev_cmd() {
 ## -- Pgcontrol commands -- ##
 
 function start_run() {
-    echo "Running... ctrl^C to stop"
+    info "Running... ctrl^C to stop"
     pgctrl_cmd "start"
-    echo "Done"
+    info "Done"
 
 }
 
@@ -92,7 +106,7 @@ function start_run() {
 function remove_thread() {
     if [ -z "$1" ]; then
 	echo "[$FUNCNAME] needs thread number"
-	exit 1;
+	exit 2;
     fi
     local num="$1"
 
@@ -117,7 +131,7 @@ function remove_threads() {
 function add_device() {
     if [ -z "$1" ]; then
 	echo "[$FUNCNAME] needs device arg"
-	exit 1;
+	exit 2;
     fi
     local dev="$1"
 
@@ -129,7 +143,7 @@ function add_device() {
 
 function create_thread() {
     if [ -z "$1" ]; then
-        echo "[$FUNCNAME] require input dev (optional) and number"
+        echo "[$FUNCNAME] require input dev and (optional) number"
         exit 2
     fi
     local dev=$1
@@ -162,8 +176,12 @@ function create_threads() {
 # Common config for a dev
 function base_config() {
     if [ -n "$1" ]; then
-        PGDEV="$1"
+        local dev="$1"
+    else
+	err "need device input"
     fi
+
+
     echo "Base config of $PGDEV"
     pgset "count $COUNT"
     pgset "clone_skb $CLONE_SKB"
