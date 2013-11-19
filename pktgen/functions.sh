@@ -72,22 +72,22 @@ function proc_cmd() {
     fi
 }
 
-function thread_cmd() {
+function cmd_thread() {
     local thread=$1
     local proc_file="kpktgend_${thread}"
     shift
     proc_cmd ${proc_file} "$@"
 }
 
-function pgctrl_cmd() {
+function cmd_pgctrl() {
     local proc_file="pgctrl"
     proc_cmd ${proc_file} "$@"
 }
 
-function dev_cmd() {
+function cmd_dev() {
     local dev=$1
-    local thread=$1
-    local proc_file=""
+    #local thread=$2
+    local proc_file="$dev"
     shift
     proc_cmd ${proc_file} "$@"
 }
@@ -143,31 +143,37 @@ function add_device() {
 
 function create_thread() {
     if [ -z "$1" ]; then
-        echo "[$FUNCNAME] require input dev and (optional) number"
-        exit 2
+        err 2 "[$FUNCNAME] require thread num and device (defaults to $DEV)"
     fi
-    local dev=$1
-    local num=$2
+    local thread=$1
+    local dev=$2
+    if [ -z "$dev" ]; then
+	info "thread $thread add_device defaults to device $DEV"
+	dev=$DEV
+    fi
 
-    PGDEV=/proc/net/pktgen/kpktgend_${num}
-    if [ -n "$num" ]; then
-	add_device "${dev}@${num}"
-    else
-	add_device "${dev}"
-    fi
+    info "Removing all devices from thread:$thread"
+    cmd_thread $thread "rem_device_all"
+
+    local mqdev=${dev}@${thread}
+    info "Adding device:${mqdev} to thread:$thread"
+    cmd_thread $thread "add_device ${mqdev}"
 }
 
 function create_threads() {
     if [ -z "$2" ]; then
-        echo "[$FUNCNAME] require input dev, (thread-range) min and max"
+        err "[$FUNCNAME] require thread-range) min and max"
         exit 2
     fi
-    local dev=$1
-    local min=$2
-    local max=$3
+    local min=$1
+    local max=$2
+    local dev=$3
+    if [ -z "$dev" ]; then
+	dev=$DEV
+    fi
 
     for num in `seq $min $max`; do
-	create_thread ${dev} ${num}
+	create_thread ${num} ${dev}
     done
 }
 
@@ -181,7 +187,6 @@ function base_config() {
 	err "need device input"
     fi
 
-
     echo "Base config of $PGDEV"
     pgset "count $COUNT"
     pgset "clone_skb $CLONE_SKB"
@@ -191,14 +196,24 @@ function base_config() {
     pgset "dst_mac ${DST_MAC}"
 }
 
+function dev_set_dst_ip() {
+    if [ -n "$2" ]; then
+	local dev="$1"
+	local IP="$2"
+	echo "- Dev:$dev Destination IP:$IP"
+	cmd_dev $dev "dst $IP"
+    else
+	err 2 "[$FUNCNAME] input error"
+    fi
+}
+
 function set_dst_ip() {
     if [ -n "$1" ]; then
-	local IP="$1"
-	echo "- Destination IP:$IP"
-	pgset "dst $IP"
+        local IP="$1"
+        echo "- Destination IP:$IP"
+        pgset "dst $IP"
     else
-	echo "[$FUNCNAME] input error"
-	exit 2
+        err 2 "[$FUNCNAME] input error"
     fi
 }
 
