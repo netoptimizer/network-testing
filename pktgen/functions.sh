@@ -31,6 +31,10 @@ function pgset() {
 	echo "cmd: $1 > $PGDEV"
     fi
     echo $1 > $PGDEV
+    local res=$?
+    if [ $res -ne 0 ]; then
+	warn "[$FUNCNAME] some error($res) occured cmd: $1 > $PGDEV"
+    fi
 
     result=`cat $PGDEV | fgrep "Result: OK:"`
     if [ "$result" = "" ]; then
@@ -96,7 +100,7 @@ function cmd_dev() {
 
 function start_run() {
     info "Running... ctrl^C to stop"
-    pgctrl_cmd "start"
+    cmd_pgctrl "start"
     info "Done"
 
 }
@@ -184,7 +188,7 @@ function base_config() {
     if [ -n "$1" ]; then
         local dev="$1"
     else
-	err "need device input"
+	warn "[$FUNCNAME] need device input"
     fi
 
     echo "Base config of $PGDEV"
