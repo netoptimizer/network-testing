@@ -102,11 +102,6 @@ fi
 iptables -t raw -I PREROUTING -i $DEV -p tcp -m tcp --syn \
     --dport $PORT -j CT --notrack
 
-# More strict conntrack handling to get unknown ACKs (from 3WHS) to be
-#  marked as INVALID state (else a conntrack is just created)
-#
-$su /sbin/sysctl -w net/netfilter/nf_conntrack_tcp_loose=0
-
 # Catching state
 #  UNTRACKED == SYN packets
 #  INVALID   == ACK from 3WHS
@@ -118,6 +113,11 @@ iptables -A INPUT -i $DEV -p tcp -m tcp --dport $PORT \
 #  This will e.g. catch SYN-ACK packet attacks
 iptables -A INPUT -i $DEV -p tcp -m tcp --dport $PORT \
     -m state --state INVALID -j DROP
+
+# More strict conntrack handling to get unknown ACKs (from 3WHS) to be
+#  marked as INVALID state (else a conntrack is just created)
+#
+$su /sbin/sysctl -w net/netfilter/nf_conntrack_tcp_loose=0
 
 # Enable timestamping, because SYN cookies uses TCP options field
 $su /sbin/sysctl -w net/ipv4/tcp_timestamps=1
