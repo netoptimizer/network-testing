@@ -20,7 +20,7 @@ help:
 $(TARGETS): $(OBJECTS)
 
 # OBJECTS
-%.o: %.c $(HEADERS)
+%.o: %.c $(HEADERS) Makefile
 	$(CC) $(CFLAGS) -c  $< -o $@
 
 # TARGETS
