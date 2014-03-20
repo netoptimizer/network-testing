@@ -178,7 +178,7 @@ int main(int argc, char *argv[])
 	/* Connect to recv ICMP error messages */
 	connect(sockfd, (struct sockaddr *)&dest_addr,
 		sockaddr_len(&dest_addr));
-	
+
 	len_send = send_packet(sockfd, &dest_addr, buf_send, pkt_size);
 	len_recv = recv_packet(sockfd, &dest_addr, buf_recv, len_send);
 	validate_packet(len_send, len_recv, buf_send, buf_recv);
