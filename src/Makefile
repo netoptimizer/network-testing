@@ -11,7 +11,7 @@ HEADERS = ${OBJECTS:.o=.h}
 TARGETS = ${SRCS:.c=}
 LIBS_PCAP=-lpcap
 
-all: $(TARGETS) $(OBJECTS)
+all: $(TARGETS)
 
 help:
 	@echo Possible targets: $(TARGETS)
@@ -20,7 +20,7 @@ help:
 $(TARGETS): $(OBJECTS)
 
 # OBJECTS
-%.o: %.c $(HEADERS) Makefile
+%.o: %.c $(HEADERS) global.h Makefile
 	$(CC) $(CFLAGS) -c  $< -o $@
 
 # TARGETS

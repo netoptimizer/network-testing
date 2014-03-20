@@ -31,6 +31,8 @@
 #define PACKET_QDISC_BYPASS 20
 #endif
 
+#include "common_socket.h"
+
 /* Avail in kernel >= 3.14
  * in commit d346a3fae3 (packet: introduce PACKET_QDISC_BYPASS socket option)
  */
@@ -63,11 +65,7 @@ int pf_tx_socket(int ver)
                 exit(1);
         }
 
-        ret = setsockopt(sock, SOL_PACKET, PACKET_VERSION, &ver, sizeof(ver));
-        if (ret == -1) {
-                perror("setsockopt");
-                exit(1);
-        }
+        ret = Setsockopt(sock, SOL_PACKET, PACKET_VERSION, &ver, sizeof(ver));
 
         return sock;
 }

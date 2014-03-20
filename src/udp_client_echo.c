@@ -19,6 +19,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 
+#include "global.h"
 #include "common_socket.h"
 
 #define PORT 4040 /* Default port, change with option "-p" */
@@ -149,7 +150,7 @@ int main(int argc, char *argv[])
 	}
 	if (optind >= argc) {
 		fprintf(stderr, "Expected dest IP-address (IPv6 or IPv4) argument after options\n");
-		exit(2);
+		exit(EXIT_FAIL_GETOPT);
 	}
 	dest_ip = argv[optind];
 	if (verbose > 0)
