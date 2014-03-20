@@ -11,6 +11,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "common_socket.h"
+
 void error(char *msg)
 {
 	perror(msg);
@@ -31,8 +33,7 @@ int main(int argc, char *argv[])
 
 	length = sizeof (struct sockaddr_in6);
 
-	sock=socket(AF_INET6, SOCK_DGRAM, 0);
-	if (sock < 0) error("Opening socket");
+	sock=Socket(AF_INET6, SOCK_DGRAM, 0);
 
 	bzero((char *)&server, length);
 	server.sin6_family=AF_INET6;

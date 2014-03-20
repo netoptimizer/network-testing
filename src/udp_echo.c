@@ -29,6 +29,8 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 
+#include "common_socket.h"
+
 #define PORT 4040 /* Default port, change with option "-l" */
 #define DEBUG 1
 static volatile int verbose = 1;
@@ -139,7 +141,7 @@ int main(int argc, char *argv[])
 		if (c == 'v') verbose = atoi(optarg);
 	}
 
-	fd = socket(addr_family, SOCK_DGRAM, 0);
+	fd = Socket(addr_family, SOCK_DGRAM, 0);
 
 	memset(&addr, 0, sizeof(addr));
 

@@ -22,8 +22,11 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 
+#include "common_socket.h"
+
 #define PORT 4040
 #define DEBUG 1
+
 
 int pktinfo_get(struct msghdr *my_hdr, struct in_pktinfo *pktinfo)
 {
@@ -49,7 +52,7 @@ int pktinfo_get(struct msghdr *my_hdr, struct in_pktinfo *pktinfo)
 
 int main(int argc, char *argv[])
 {
-	int fd = socket(AF_INET, SOCK_DGRAM, 0);
+	int fd = Socket(AF_INET, SOCK_DGRAM, 0);
 	struct sockaddr_in addr, rem_addr;
 	int res, on = 1;
 	struct msghdr msghdr;

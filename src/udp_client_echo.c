@@ -1,6 +1,8 @@
-/* -*- c-file-style: "linux" -*- */
-
-/*
+/* -*- c-file-style: "linux" -*-
+ * Author: Jesper Dangaard Brouer <netoptimizer@brouer.com>, (C)2014
+ * License: GPLv2
+ * From: https://github.com/netoptimizer/network-testing
+ *
  * IPv6 UDP client that expects an echo reply of its own packet
  *  - Set socket options to "encourage" fragmentation
  *
@@ -45,14 +47,14 @@ void setup_sockaddr(int addr_family, struct sockaddr_storage *addr,
 		res = inet_pton(AF_INET, ip_str, &(addr_v4->sin_addr));
 	} else {
 		fprintf(stderr, "ERROR: Unsupported addr_family\n");
-		exit(3);
+		exit(EXIT_FAIL_OPTION);
 	}
 	if (res <= 0) {
 		if (res == 0)
 			fprintf(stderr, "ERROR: IP \"%s\"not in presentation format\n", ip_str);
 		else
 			perror("inet_pton");
-		exit(4);
+		exit(EXIT_FAIL_IP);
 	}
 }
 
@@ -69,7 +71,7 @@ socklen_t sockaddr_len(const struct sockaddr_storage *sockaddr)
 	default:
 		fprintf(stderr, "ERROR: %s(): Cannot determine lenght of addr_family(%d)",
                         __func__, sockaddr->ss_family);
-		exit(4);
+		exit(EXIT_FAIL_SOCK);
 	}
 	return len_addr;
 }
@@ -150,13 +152,13 @@ int main(int argc, char *argv[])
 	}
 	if (optind >= argc) {
 		fprintf(stderr, "Expected dest IP-address (IPv6 or IPv4) argument after options\n");
-		exit(EXIT_FAIL_GETOPT);
+		exit(EXIT_FAIL_OPTION);
 	}
 	dest_ip = argv[optind];
 	if (verbose > 0)
 		printf("Destination IP:%s port:%d\n", dest_ip, dest_port);
 
-	sockfd = socket(addr_family, SOCK_DGRAM, 0);
+	sockfd = Socket(addr_family, SOCK_DGRAM, 0);
 
 	/* Socket options, see man-pages ip(7) and ipv6(7) */
 	//int set_pmtu_disc = IP_PMTUDISC_DO; /* do PMTU = Don't Fragment */

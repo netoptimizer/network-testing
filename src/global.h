@@ -3,7 +3,9 @@
 
 /* Exit return codes */
 #define	EXIT_OK			0
-#define EXIT_FAIL_GETOPT	1
+#define EXIT_FAIL_OPTION	1
 #define EXIT_FAIL_SOCK		2
+#define EXIT_FAIL_SOCKOPT	3
+#define EXIT_FAIL_IP		10
 
 #endif /* GLOBAL_H */
