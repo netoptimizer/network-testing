@@ -19,6 +19,8 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 
+#include "common_socket.h"
+
 #define PORT 4040 /* Default port, change with option "-p" */
 static volatile int verbose = 2;
 
@@ -121,17 +123,6 @@ int validate_packet(int len_send, int len_recv, char* buf_send, char* buf_recv)
 		exit(1);
 	}
 	printf("OK: valid size\n");
-}
-
-/* Err handle wrapper for setsockopt */
-int Setsockopt (int fd, int level, int optname, const void *optval, socklen_t optlen)
-{
-	int res = setsockopt(fd, level, optname, optval, optlen);
-	if (res < 0) {
-		fprintf(stderr, "ERROR: %s() failed (%d) ", __func__, res);
-		perror("- setsockopt");
-		exit(10);
-	}
 }
 
 int main(int argc, char *argv[])

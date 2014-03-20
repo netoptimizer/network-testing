@@ -5,16 +5,27 @@
 SRCS =  ipv6_example01.c udp_example02.c udp_echo.c udp_client_echo.c \
 	raw_packet_send.c
 
+OBJECTS = common_socket.o
+HEADERS = ${OBJECTS:.o=.h}
+
 TARGETS = ${SRCS:.c=}
 LIBS_PCAP=-lpcap
 
-all: $(TARGETS)
+all: $(TARGETS) $(OBJECTS)
 
 help:
 	@echo Possible targets: $(TARGETS)
 
+# Create dependency to OBJECTS
+$(TARGETS): $(OBJECTS)
+
+# OBJECTS
+%.o: %.c $(HEADERS)
+	$(CC) $(CFLAGS) -c  $< -o $@
+
+# TARGETS
 .c: $<
-	gcc -o $@ $<
+	gcc -o $@ $< $(OBJECTS)
 
 pcap_timeread: pcap_timeread.c
 	gcc -o $@ $(LIBS_PCAP) $<
