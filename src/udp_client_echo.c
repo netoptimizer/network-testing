@@ -27,55 +27,6 @@
 #define PORT 4040 /* Default port, change with option "-p" */
 static volatile int verbose = 2;
 
-void setup_sockaddr(int addr_family, struct sockaddr_storage *addr,
-		   char *ip_str, uint16_t port)
-{
-	struct sockaddr_in  *addr_v4; /* Pointer for IPv4 type casting */
-	struct sockaddr_in6 *addr_v6; /* Pointer for IPv6 type casting */
-	int res;
-
-	/* Setup sockaddr depending on IPv4 or IPv6 address */
-	if (addr_family == AF_INET6) {
-		addr_v6 = (struct sockaddr_in6*) addr;
-		addr_v6->sin6_family= addr_family;
-		addr_v6->sin6_port  = htons(port);
-		res = inet_pton(AF_INET6, ip_str, &addr_v6->sin6_addr);
-	} else if (addr_family == AF_INET) {
-		addr_v4 = (struct sockaddr_in*) addr;
-		addr_v4->sin_family = addr_family;
-		addr_v4->sin_port   = htons(port);
-		res = inet_pton(AF_INET, ip_str, &(addr_v4->sin_addr));
-	} else {
-		fprintf(stderr, "ERROR: Unsupported addr_family\n");
-		exit(EXIT_FAIL_OPTION);
-	}
-	if (res <= 0) {
-		if (res == 0)
-			fprintf(stderr, "ERROR: IP \"%s\"not in presentation format\n", ip_str);
-		else
-			perror("inet_pton");
-		exit(EXIT_FAIL_IP);
-	}
-}
-
-socklen_t sockaddr_len(const struct sockaddr_storage *sockaddr)
-{
-	socklen_t len_addr = 0;
-	switch (sockaddr->ss_family) {
-	case AF_INET:
-		len_addr = sizeof(struct sockaddr_in);
-		break;
-	case AF_INET6:
-		len_addr = sizeof(struct sockaddr_in6);
-		break;
-	default:
-		fprintf(stderr, "ERROR: %s(): Cannot determine lenght of addr_family(%d)",
-                        __func__, sockaddr->ss_family);
-		exit(EXIT_FAIL_SOCK);
-	}
-	return len_addr;
-}
-
 int send_packet(int sockfd, const struct sockaddr_storage *dest_addr,
 		char *buf_send, uint16_t pkt_size)
 {
