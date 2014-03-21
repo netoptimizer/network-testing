@@ -5,7 +5,7 @@
 SRCS =  ipv6_example01.c udp_example02.c udp_echo.c udp_client_echo.c \
 	raw_packet_send.c
 
-OBJECTS = common_socket.o
+OBJECTS = common_socket.o common.o
 HEADERS = ${OBJECTS:.o=.h}
 
 TARGETS = ${SRCS:.c=}
