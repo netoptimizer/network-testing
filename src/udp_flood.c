@@ -26,6 +26,7 @@
 #include "common_socket.h"
 
 static int verbose = 1;
+#define NANOSEC_PER_SEC 1000000000 /* 10^9 */
 
 static int flood_with_sendto(int sockfd, struct sockaddr_storage *dest_addr,
 			     int count, int msg_sz)
@@ -64,6 +65,8 @@ int main(int argc, char *argv[])
 	int sockfd, c;
 	uint64_t tsc_begin, tsc_end, tsc_interval;
 	int cnt_send;
+	double pps;
+	int nanosecs;
 
 	/* Default settings */
 	int addr_family = AF_INET; /* Default address family */
@@ -115,8 +118,13 @@ int main(int argc, char *argv[])
 		close(sockfd);
 		exit(EXIT_FAIL_SEND);
 	}
-	printf("TSC cycles per packet: %llu (pkts send:%d)\n",
-	       tsc_interval / cnt_send, cnt_send);
+
+	/* Stats */
+	pps      = cnt_send / ((double)tsc_interval / NANOSEC_PER_SEC);
+	nanosecs = tsc_interval / cnt_send;
+	printf("TSC cycles(%d) per packet: %llu nanosec (pkts send:%d) %.2f pps\n",
+	       tsc_interval, nanosecs, cnt_send, pps);
+
 
 	close(sockfd);
 }
