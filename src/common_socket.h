@@ -13,6 +13,7 @@
 
 /* Wrapper functions with error handling like "Stevens" */
 int Socket(int addr_family, int type, int protocol);
+int Connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 int Setsockopt (int fd, int level, int optname, const void *optval,
 		socklen_t optlen);
 
