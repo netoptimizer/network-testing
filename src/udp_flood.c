@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <sys/uio.h> /* struct iovec */
 
 #define _GNU_SOURCE
 #include <getopt.h>
@@ -43,7 +44,7 @@ static int flood_with_sendto(int sockfd, struct sockaddr_storage *dest_addr,
 	int cnt, res;
 	socklen_t addrlen = sockaddr_len(dest_addr);
 
-	/* Allocate message buffer */
+	/* Allocate payload buffer */
 	msg_buf = malloc(msg_sz);
 	if (!msg_buf) {
 		fprintf(stderr, "ERROR: %s() failed in malloc()", __func__);
@@ -68,6 +69,142 @@ out:
 	return res;
 }
 
+
+/*
+ For understanding 'sendmsg' data structures
+ ===========================================
+ Structure describing messages sent by  `sendmsg' and received by `recvmsg'.
+ ---------
+	struct msghdr
+	{
+		// -=- The sockaddr_in part -=-
+		void *msg_name;		// Address to send to/receive from.
+		socklen_t msg_namelen;	// Length of address data
+
+		// -=- Pointers to payload part -=-
+		struct iovec *msg_iov;	// Vector of data to send/receive into
+		size_t msg_iovlen;	// Number of elements in the vector
+
+		//
+		void *msg_control;	// Ancillary data (eg BSD filedesc passing)
+		size_t msg_controllen;	// Ancillary data buffer length.
+					// !! The type should be socklen_t but the
+					// definition of the kernel is incompatible
+					// with this.
+		int msg_flags;		// Flags on received message.
+	};
+
+ Structure for scatter/gather I/O"
+ ---------
+	struct iovec {
+		void *iov_base;	// Pointer to data.
+		size_t iov_len;	// Length of data.
+	};
+*/
+
+static int flood_with_sendmsg(int sockfd, struct sockaddr_storage *dest_addr,
+			      int count, int msg_sz)
+{
+	char          *msg_buf;  /* payload data */
+	struct msghdr *msg_hdr;  /* struct for setting up transmit */
+	struct iovec  *msg_iov; /* array of pointers to payload data */
+	unsigned int  msg_hdr_sz;
+	unsigned int  msg_iov_sz;
+	unsigned int  iov_array_sz = 1;
+
+	int cnt, res;
+	socklen_t addrlen = sockaddr_len(dest_addr);
+
+	/* Allocate payload buffer */
+	msg_buf = malloc(msg_sz);
+	if (!msg_buf) {
+		fprintf(stderr, "ERROR: %s() failed in malloc(msg_buf)", __func__);
+		exit(EXIT_FAIL_MEM);
+	}
+	if (verbose) fprintf(stderr, " %s() malloc(msg_buf) = %d bytes\n", __func__, msg_sz);
+	memset(msg_buf, 0, msg_sz);
+
+	/* Allocate setup struct */
+	msg_hdr_sz = sizeof(*msg_hdr);
+	msg_hdr = malloc(msg_hdr_sz);
+	if (!msg_hdr) {
+		fprintf(stderr, "ERROR: %s() failed in malloc(msg_hdr)", __func__);
+		exit(EXIT_FAIL_MEM);
+	}
+	if (verbose) fprintf(stderr, " %s() malloc(msg_hdr) = %d bytes\n", __func__, msg_hdr_sz);
+	memset(msg_hdr, 0, msg_hdr_sz);
+
+	/* Allocate I/O vector array */
+	msg_iov_sz = sizeof(*msg_iov) * iov_array_sz;
+	msg_iov = malloc(msg_iov_sz);
+	if (!msg_iov) {
+		fprintf(stderr, "ERROR: %s() failed in malloc(msg_iov)", __func__);
+		exit(EXIT_FAIL_MEM);
+	}
+	if (verbose) fprintf(stderr, " %s() msg_iov[%d] = %d bytes\n", __func__,
+			     iov_array_sz, msg_iov_sz);
+	memset(msg_iov, 0, msg_iov_sz);
+
+	/*** Setup packet structure for transmitting ***/
+
+	/* The destination addr */
+	msg_hdr->msg_name    = dest_addr;
+	msg_hdr->msg_namelen = addrlen;
+
+	/* The pointers to data */
+	msg_iov[0].iov_base = msg_buf;
+	msg_iov[0].iov_len  = msg_sz;
+
+	msg_hdr->msg_iov     = msg_iov;
+	msg_hdr->msg_iovlen  = iov_array_sz;
+
+	/* Flood loop */
+	for (cnt = 0; cnt < count; cnt++) {
+		res = sendmsg(sockfd, msg_hdr, 0);
+		if (res < 0) {
+			fprintf(stderr, "Managed to send %d packets\n", cnt);
+			perror("- sendmsg");
+			goto out;
+		}
+	}
+	res = cnt;
+
+out:
+	free(msg_iov);
+	free(msg_hdr);
+	free(msg_buf);
+	return res;
+}
+
+static void time_function(int sockfd, struct sockaddr_storage *dest_addr,
+			  int count, int msg_sz,
+	int (*func)(int sockfd, struct sockaddr_storage *dest_addr,
+		    int count, int msg_sz))
+{
+	uint64_t tsc_begin, tsc_end, tsc_interval;
+	int cnt_send;
+	double pps;
+	int nanosecs;
+
+	tsc_begin = rdtsc();
+	cnt_send = func(sockfd, dest_addr, count, msg_sz);
+	//cnt_send = flood_with_sendmsg(sockfd, dest_addr, count, msg_sz);
+	//cnt_send = flood_with_sendtp(sockfd, dest_addr, count, msg_sz);
+	tsc_end = rdtsc();
+	tsc_interval = tsc_end - tsc_begin;
+
+	if (cnt_send < 0) {
+		fprintf(stderr, "ERROR: failed to send packets\n");
+		close(sockfd);
+		exit(EXIT_FAIL_SEND);
+	}
+
+	/* Stats */
+	pps      = cnt_send / ((double)tsc_interval / NANOSEC_PER_SEC); //BUG
+	nanosecs = tsc_interval / cnt_send;
+	printf(" - TSC cycles(%llu) per packet: %llu cycles (pkts send:%d) %.2f xxx\n",
+	       tsc_interval, nanosecs, cnt_send, pps);
+}
 
 int main(int argc, char *argv[])
 {
@@ -117,23 +254,11 @@ int main(int argc, char *argv[])
 	 */
 	Connect(sockfd, (struct sockaddr *)&dest_addr, sockaddr_len(&dest_addr));
 
-	tsc_begin = rdtsc();
-	cnt_send = flood_with_sendto(sockfd, &dest_addr, count, msg_sz);
-	tsc_end = rdtsc();
-	tsc_interval = tsc_end - tsc_begin;
+	printf("Performance of: sendto()\n");
+	time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendto);
 
-	if (cnt_send < 0) {
-		fprintf(stderr, "ERROR: failed to send packets\n");
-		close(sockfd);
-		exit(EXIT_FAIL_SEND);
-	}
-
-	/* Stats */
-	pps      = cnt_send / ((double)tsc_interval / NANOSEC_PER_SEC);
-	nanosecs = tsc_interval / cnt_send;
-	printf("TSC cycles(%llu) per packet: %llu cycles (pkts send:%d) %.2f pps\n",
-	       tsc_interval, nanosecs, cnt_send, pps);
-
+	printf("Performance of: sendmsg()\n");
+	time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendmsg);
 
 	close(sockfd);
 }
