@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
 	/* Stats */
 	pps      = cnt_send / ((double)tsc_interval / NANOSEC_PER_SEC);
 	nanosecs = tsc_interval / cnt_send;
-	printf("TSC cycles(%d) per packet: %llu nanosec (pkts send:%d) %.2f pps\n",
+	printf("TSC cycles(%llu) per packet: %llu cycles (pkts send:%d) %.2f pps\n",
 	       tsc_interval, nanosecs, cnt_send, pps);
 
 
