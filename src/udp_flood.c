@@ -28,6 +28,14 @@
 static int verbose = 1;
 #define NANOSEC_PER_SEC 1000000000 /* 10^9 */
 
+static int usage(char *argv[])
+{
+	printf("-= ERROR: Parameter problems =-\n", argv[0]);
+	printf(" Usage: %s [-c count] [-p port] [-m payloadsize] [-4] [-6] [-v] IPADDR\n\n",
+	       argv[0]);
+	return EXIT_FAIL_OPTION;
+}
+
 static int flood_with_sendto(int sockfd, struct sockaddr_storage *dest_addr,
 			     int count, int msg_sz)
 {
@@ -48,6 +56,7 @@ static int flood_with_sendto(int sockfd, struct sockaddr_storage *dest_addr,
 		res = sendto(sockfd, msg_buf, msg_sz, 0,
 			     (struct sockaddr *) dest_addr, addrlen);
 		if (res < 0) {
+			fprintf(stderr, "Managed to send %d packets\n", cnt);
 			perror("- sendto");
 			goto out;
 		}
@@ -87,10 +96,11 @@ int main(int argc, char *argv[])
 		if (c == '4') addr_family = AF_INET;
 		if (c == '6') addr_family = AF_INET6;
 		if (c == 'v') verbose     = atoi(optarg);
+		if (c == '?') return usage(argv);
 	}
 	if (optind >= argc) {
 		fprintf(stderr, "Expected dest IP-address (IPv6 or IPv4) argument after options\n");
-		exit(EXIT_FAIL_OPTION);
+		return usage(argv);
 	}
 	dest_ip = argv[optind];
 	if (verbose > 0)
