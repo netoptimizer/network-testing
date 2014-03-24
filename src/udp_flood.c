@@ -97,8 +97,7 @@ int main(int argc, char *argv[])
 		printf("Destination IP:%s port:%d\n", dest_ip, dest_port);
 
 	/* Socket setup stuff */
-//	sockfd = Socket(addr_family, SOCK_DGRAM, IPPROTO_IP);
-	sockfd = Socket(addr_family, SOCK_DGRAM, 0);
+	sockfd = Socket(addr_family, SOCK_DGRAM, IPPROTO_IP);
 
 	/* Setup dest_addr depending on IPv4 or IPv6 address */
 	setup_sockaddr(addr_family, &dest_addr, dest_ip, dest_port);
