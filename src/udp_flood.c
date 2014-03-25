@@ -7,8 +7,11 @@
  *  for testing performance of different send system calls
  *
  */
-#include <sys/types.h>
+//#define __ASSUME_RECVMMSG
+//#define __ASSUME_SENDMMSG
+#define _GNU_SOURCE /* needed for struct mmsghdr */
 #include <sys/socket.h>
+#include <sys/types.h>
 #include <netinet/in.h>
 #include <linux/udp.h>
 #include <string.h>
@@ -19,8 +22,11 @@
 #include <arpa/inet.h>
 #include <sys/uio.h> /* struct iovec */
 
-#define _GNU_SOURCE
+//#define _GNU_SOURCE
 #include <getopt.h>
+
+//#include "syscalls.h"
+#include <linux/unistd.h>       /* for _syscallX macros/related stuff */
 
 #include "global.h"
 #include "common.h"
@@ -69,6 +75,29 @@ static struct msghdr *malloc_msghdr()
 	if (verbose)
 		fprintf(stderr, " - malloc(msg_hdr) = %d bytes\n", msg_hdr_sz);
 	return msg_hdr;
+}
+
+/* Allocate vector array of struct mmsghdr pointers for sendmmsg/recvmmsg
+ *  Notice: double "m" im mmsghdr
+ */
+static struct mmsghdr *malloc_mmsghdr(unsigned int array_elems)
+{
+	struct mmsghdr *mmsg_hdr_vec;
+	unsigned int memsz;
+
+	//memsz = sizeof(*mmsg_hdr_vec) * array_elems;
+	memsz = sizeof(struct mmsghdr) * array_elems;
+	mmsg_hdr_vec = malloc(memsz);
+	if (!mmsg_hdr_vec) {
+		fprintf(stderr, "ERROR: %s() failed in malloc() (caller: 0x%x)",
+			__func__, __builtin_return_address(0));
+		exit(EXIT_FAIL_MEM);
+	}
+	memset(mmsg_hdr_vec, 0, memsz);
+	if (verbose)
+		fprintf(stderr, " - malloc(mmsghdr[%d]) = %d bytes\n",
+			array_elems, memsz);
+	return mmsg_hdr_vec;
 }
 
 /* Allocate I/O vector array of struct iovec.
@@ -213,6 +242,90 @@ out:
 	return res;
 }
 
+/*
+ For understanding 'sendmmsg' / mmsghdr data structures
+ ======================================================
+
+ int sendmmsg(int sockfd, struct mmsghdr *msgvec, unsigned int vlen,
+              unsigned int flags);
+
+	struct mmsghdr {
+		struct msghdr msg_hdr;  // Message header
+		unsigned int  msg_len;  // Number of bytes transmitted
+	};
+*/
+
+/* Notice: double "m" in sendmmsg
+ * - sending multible packet in one syscall
+ */
+static int flood_with_sendmmsg(int sockfd, struct sockaddr_storage *dest_addr,
+			       int count, int msg_sz)
+{
+	char          *msg_buf;  /* payload data */
+	struct iovec  *msg_iov;  /* io-vector: array of pointers to payload data */
+	unsigned int  msg_hdr_sz;
+	unsigned int  msg_iov_sz;
+	unsigned int  iov_array_elems = 1; /*adjust to test scattered payload */
+	unsigned int  burst = 1;
+	int i;
+
+	/* struct *mmsghdr -  pointer to an array of mmsghdr structures.
+	 *   *** Notice: double "m" in mmsghdr ***
+	 * Allows the caller to transmit multiple messages on a socket
+	 * using a single system call
+	 */
+	struct mmsghdr *mmsg_hdr;
+
+	int cnt, res;
+	socklen_t addrlen = sockaddr_len(dest_addr);
+
+	msg_buf  = malloc_payload_buffer(msg_sz); /* Alloc payload buffer */
+	mmsg_hdr = malloc_mmsghdr(burst);         /* Alloc mmsghdr array */
+	msg_iov  = malloc_iovec(iov_array_elems); /* Alloc I/O vector array */
+
+	/*** Setup packet structure for transmitting ***/
+
+	/* The destination addr */
+	mmsg_hdr[0].msg_hdr.msg_name    = dest_addr;
+	mmsg_hdr[0].msg_hdr.msg_namelen = addrlen;
+
+	/* Setup io-vector pointers to payload data */
+	msg_iov[0].iov_base = msg_buf;
+	msg_iov[0].iov_len  = msg_sz;
+	/* The io-vector supports scattered payload data, below add a simpel
+	 * testcase with same payload, adjust iov_array_elems > 1 to activate code
+	 */
+	for (i = 1; i < iov_array_elems; i++) {
+		msg_iov[i].iov_base = msg_buf;
+		msg_iov[i].iov_len  = msg_sz;
+	}
+	/* Binding io-vector to packet setup struct */
+	mmsg_hdr[0].msg_hdr.msg_iov    = msg_iov;
+	mmsg_hdr[0].msg_hdr.msg_iovlen = iov_array_elems;
+
+	/* Flood loop */
+	for (cnt = 0; cnt < count; cnt++) {
+//		res = sendmmsg(sockfd, mmsg_hdr, burst, 0);
+		res = syscall(__NR_sendmmsg, sockfd, mmsg_hdr, burst, 0);
+
+		if (res < 0) {
+			goto error;
+		}
+	}
+	res = cnt;
+	goto out;
+error:
+	/* Error case */
+	fprintf(stderr, "Managed to send %d packets\n", cnt);
+	perror("- sendMmsg");
+out:
+	free(msg_iov);
+	free(mmsg_hdr);
+	free(msg_buf);
+	return res;
+}
+
+
 static void time_function(int sockfd, struct sockaddr_storage *dest_addr,
 			  int count, int msg_sz,
 	int (*func)(int sockfd, struct sockaddr_storage *dest_addr,
@@ -291,11 +404,14 @@ int main(int argc, char *argv[])
 	 */
 	Connect(sockfd, (struct sockaddr *)&dest_addr, sockaddr_len(&dest_addr));
 
-//	printf("Performance of: sendto()\n");
-//	time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendto);
+	printf("Performance of: sendto()\n");
+	time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendto);
 
 	printf("Performance of: sendmsg()\n");
 	time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendmsg);
+
+	printf("Performance of: sendMmsg()\n");
+	time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendmmsg);
 
 	close(sockfd);
 }
