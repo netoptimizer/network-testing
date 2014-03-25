@@ -7,9 +7,7 @@
  *  for testing performance of different send system calls
  *
  */
-//#define __ASSUME_RECVMMSG
-//#define __ASSUME_SENDMMSG
-#define _GNU_SOURCE /* needed for struct mmsghdr */
+#define _GNU_SOURCE /* needed for struct mmsghdr and getopt.h */
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <netinet/in.h>
@@ -22,7 +20,6 @@
 #include <arpa/inet.h>
 #include <sys/uio.h> /* struct iovec */
 
-//#define _GNU_SOURCE
 #include <getopt.h>
 
 //#include "syscalls.h"
@@ -266,8 +263,10 @@ static int flood_with_sendmmsg(int sockfd, struct sockaddr_storage *dest_addr,
 	unsigned int  msg_hdr_sz;
 	unsigned int  msg_iov_sz;
 	unsigned int  iov_array_elems = 1; /*adjust to test scattered payload */
-	unsigned int  burst = 1;
+	unsigned int  burst = 32;
 	int i;
+
+	count = count / burst;
 
 	/* struct *mmsghdr -  pointer to an array of mmsghdr structures.
 	 *   *** Notice: double "m" in mmsghdr ***
@@ -276,7 +275,7 @@ static int flood_with_sendmmsg(int sockfd, struct sockaddr_storage *dest_addr,
 	 */
 	struct mmsghdr *mmsg_hdr;
 
-	int cnt, res;
+	int cnt, res, pkt;
 	socklen_t addrlen = sockaddr_len(dest_addr);
 
 	msg_buf  = malloc_payload_buffer(msg_sz); /* Alloc payload buffer */
@@ -284,10 +283,6 @@ static int flood_with_sendmmsg(int sockfd, struct sockaddr_storage *dest_addr,
 	msg_iov  = malloc_iovec(iov_array_elems); /* Alloc I/O vector array */
 
 	/*** Setup packet structure for transmitting ***/
-
-	/* The destination addr */
-	mmsg_hdr[0].msg_hdr.msg_name    = dest_addr;
-	mmsg_hdr[0].msg_hdr.msg_namelen = addrlen;
 
 	/* Setup io-vector pointers to payload data */
 	msg_iov[0].iov_base = msg_buf;
@@ -299,9 +294,15 @@ static int flood_with_sendmmsg(int sockfd, struct sockaddr_storage *dest_addr,
 		msg_iov[i].iov_base = msg_buf;
 		msg_iov[i].iov_len  = msg_sz;
 	}
-	/* Binding io-vector to packet setup struct */
-	mmsg_hdr[0].msg_hdr.msg_iov    = msg_iov;
-	mmsg_hdr[0].msg_hdr.msg_iovlen = iov_array_elems;
+
+	for (pkt = 0; pkt < burst; pkt++) {
+		/* The destination addr */
+		mmsg_hdr[pkt].msg_hdr.msg_name    = dest_addr;
+		mmsg_hdr[pkt].msg_hdr.msg_namelen = addrlen;
+		/* Binding io-vector to packet setup struct */
+		mmsg_hdr[pkt].msg_hdr.msg_iov    = msg_iov;
+		mmsg_hdr[pkt].msg_hdr.msg_iovlen = iov_array_elems;
+	}
 
 	/* Flood loop */
 	for (cnt = 0; cnt < count; cnt++) {
@@ -312,7 +313,7 @@ static int flood_with_sendmmsg(int sockfd, struct sockaddr_storage *dest_addr,
 			goto error;
 		}
 	}
-	res = cnt;
+	res = cnt * burst;
 	goto out;
 error:
 	/* Error case */
