@@ -107,10 +107,11 @@ static int flood_with_sendmsg(int sockfd, struct sockaddr_storage *dest_addr,
 {
 	char          *msg_buf;  /* payload data */
 	struct msghdr *msg_hdr;  /* struct for setting up transmit */
-	struct iovec  *msg_iov; /* array of pointers to payload data */
+	struct iovec  *msg_iov;  /* io-vector: array of pointers to payload data */
 	unsigned int  msg_hdr_sz;
 	unsigned int  msg_iov_sz;
-	unsigned int  iov_array_sz = 1;
+	unsigned int  iov_array_sz = 1; /*adjust to test scattered payload */
+	int i;
 
 	int cnt, res;
 	socklen_t addrlen = sockaddr_len(dest_addr);
@@ -151,10 +152,17 @@ static int flood_with_sendmsg(int sockfd, struct sockaddr_storage *dest_addr,
 	msg_hdr->msg_name    = dest_addr;
 	msg_hdr->msg_namelen = addrlen;
 
-	/* The pointers to data */
+	/* Setup io-vector pointers to payload data */
 	msg_iov[0].iov_base = msg_buf;
 	msg_iov[0].iov_len  = msg_sz;
-
+	/* The io-vector supports scattered payload data, below add a simpel
+	 * testcase with same payload, adjust iov_array_sz > 1 to activate code
+	 */
+	for (i = 1; i < iov_array_sz; i++) {
+		msg_iov[i].iov_base = msg_buf;
+		msg_iov[i].iov_len  = msg_sz;
+	}
+	/* Binding io-vector to packet setup struct */
 	msg_hdr->msg_iov     = msg_iov;
 	msg_hdr->msg_iovlen  = iov_array_sz;
 
@@ -254,8 +262,8 @@ int main(int argc, char *argv[])
 	 */
 	Connect(sockfd, (struct sockaddr *)&dest_addr, sockaddr_len(&dest_addr));
 
-	printf("Performance of: sendto()\n");
-	time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendto);
+//	printf("Performance of: sendto()\n");
+//	time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendto);
 
 	printf("Performance of: sendmsg()\n");
 	time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendmsg);
