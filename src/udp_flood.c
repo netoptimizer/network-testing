@@ -30,7 +30,6 @@
 #include "common_socket.h"
 
 static int verbose = 1;
-#define NANOSEC_PER_SEC 1000000000 /* 10^9 */
 
 static int usage(char *argv[])
 {
@@ -332,17 +331,21 @@ static void time_function(int sockfd, struct sockaddr_storage *dest_addr,
 	int (*func)(int sockfd, struct sockaddr_storage *dest_addr,
 		    int count, int msg_sz))
 {
-	uint64_t tsc_begin, tsc_end, tsc_interval;
+	uint64_t tsc_begin,  tsc_end,  tsc_interval;
+	uint64_t time_begin, time_end, time_interval;
 	int cnt_send;
 	double pps;
 	int nanosecs;
 
-	tsc_begin = rdtsc();
+	time_begin = gettime();
+	tsc_begin  = rdtsc();
 	cnt_send = func(sockfd, dest_addr, count, msg_sz);
 	//cnt_send = flood_with_sendmsg(sockfd, dest_addr, count, msg_sz);
 	//cnt_send = flood_with_sendtp(sockfd, dest_addr, count, msg_sz);
-	tsc_end = rdtsc();
-	tsc_interval = tsc_end - tsc_begin;
+	tsc_end  = rdtsc();
+	time_end = gettime();
+	tsc_interval  = tsc_end  - tsc_begin;
+	time_interval = time_end - time_begin;
 
 	if (cnt_send < 0) {
 		fprintf(stderr, "ERROR: failed to send packets\n");
@@ -351,10 +354,11 @@ static void time_function(int sockfd, struct sockaddr_storage *dest_addr,
 	}
 
 	/* Stats */
-	pps      = cnt_send / ((double)tsc_interval / NANOSEC_PER_SEC); //BUG
+	pps      = cnt_send / ((double)time_interval / NANOSEC_PER_SEC);
 	nanosecs = tsc_interval / cnt_send;
-	printf(" - TSC cycles(%llu) per packet: %llu cycles (pkts send:%d) %.2f xxx\n",
-	       tsc_interval, nanosecs, cnt_send, pps);
+	printf(" - TSC cycles(%llu) per packet: %llu cycles (pkts send:%d) %.2f pps (time:%.2f sec)\n",
+	       tsc_interval, nanosecs, cnt_send, pps,
+	       ((double)time_interval / NANOSEC_PER_SEC));
 }
 
 int main(int argc, char *argv[])
@@ -405,13 +409,13 @@ int main(int argc, char *argv[])
 	 */
 	Connect(sockfd, (struct sockaddr *)&dest_addr, sockaddr_len(&dest_addr));
 
-	printf("Performance of: sendto()\n");
+	printf("\nPerformance of: sendto()\n");
 	time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendto);
 
-	printf("Performance of: sendmsg()\n");
+	printf("\nPerformance of: sendmsg()\n");
 	time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendmsg);
 
-	printf("Performance of: sendMmsg()\n");
+	printf("\nPerformance of: sendMmsg()\n");
 	time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendmmsg);
 
 	close(sockfd);

@@ -9,6 +9,9 @@ OBJECTS = common_socket.o common.o
 HEADERS = ${OBJECTS:.o=.h}
 
 TARGETS = ${SRCS:.c=}
+
+# librt needed for 'clock_gettime'
+LIBS=-lrt
 LIBS_PCAP=-lpcap
 
 all: $(TARGETS)
@@ -25,7 +28,7 @@ $(TARGETS): $(OBJECTS)
 
 # TARGETS
 .c: $<
-	gcc -o $@ $< $(OBJECTS)
+	gcc $(LIBS) -o $@ $< $(OBJECTS)
 
 pcap_timeread: pcap_timeread.c
 	gcc -o $@ $(LIBS_PCAP) $<
