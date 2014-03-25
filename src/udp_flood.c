@@ -49,11 +49,51 @@ static char *malloc_payload_buffer(int msg_sz)
 	}
 	memset(msg_buf, 0, msg_sz);
 	if (verbose)
-		fprintf(stderr, " - caller(0x%x) malloc(msg_buf) = %d bytes\n",
-			__builtin_return_address(0), msg_sz);
-
+		fprintf(stderr, " - malloc(msg_buf) = %d bytes\n", msg_sz);
 	return msg_buf;
 }
+
+/* Allocate struct msghdr setup structure for sendmsg/recvmsg */
+static struct msghdr *malloc_msghdr()
+{
+	struct msghdr *msg_hdr;
+	unsigned int msg_hdr_sz = sizeof(*msg_hdr);
+
+	msg_hdr = malloc(msg_hdr_sz);
+	if (!msg_hdr) {
+		fprintf(stderr, "ERROR: %s() failed in malloc() (caller: 0x%x)",
+			__func__, __builtin_return_address(0));
+		exit(EXIT_FAIL_MEM);
+	}
+	memset(msg_hdr, 0, msg_hdr_sz);
+	if (verbose)
+		fprintf(stderr, " - malloc(msg_hdr) = %d bytes\n", msg_hdr_sz);
+	return msg_hdr;
+}
+
+/* Allocate I/O vector array of struct iovec.
+ * (The structure supports scattered payloads)
+ */
+static struct iovec *malloc_iovec(unsigned int iov_array_elems)
+{
+	struct iovec  *msg_iov;      /* io-vector: array of pointers to payload data */
+	unsigned int  msg_iov_memsz; /* array memory size */
+
+	msg_iov_memsz = sizeof(*msg_iov) * iov_array_elems;
+	msg_iov = malloc(msg_iov_memsz);
+	if (!msg_iov) {
+		fprintf(stderr, "ERROR: %s() failed in malloc() (caller: 0x%x)",
+			__func__, __builtin_return_address(0));
+		exit(EXIT_FAIL_MEM);
+	}
+	memset(msg_iov, 0, msg_iov_memsz);
+	if (verbose)
+		fprintf(stderr, " - malloc(msg_iov[%d]) = %d bytes\n",
+			iov_array_elems, msg_iov_memsz);
+	return msg_iov;
+}
+
+
 
 static int flood_with_sendto(int sockfd, struct sockaddr_storage *dest_addr,
 			     int count, int msg_sz)
@@ -123,35 +163,15 @@ static int flood_with_sendmsg(int sockfd, struct sockaddr_storage *dest_addr,
 	struct iovec  *msg_iov;  /* io-vector: array of pointers to payload data */
 	unsigned int  msg_hdr_sz;
 	unsigned int  msg_iov_sz;
-	unsigned int  iov_array_sz = 1; /*adjust to test scattered payload */
+	unsigned int  iov_array_elems = 1; /*adjust to test scattered payload */
 	int i;
 
 	int cnt, res;
 	socklen_t addrlen = sockaddr_len(dest_addr);
 
-	/* Allocate payload buffer */
-	msg_buf = malloc_payload_buffer(msg_sz);
-
-	/* Allocate setup struct */
-	msg_hdr_sz = sizeof(*msg_hdr);
-	msg_hdr = malloc(msg_hdr_sz);
-	if (!msg_hdr) {
-		fprintf(stderr, "ERROR: %s() failed in malloc(msg_hdr)", __func__);
-		exit(EXIT_FAIL_MEM);
-	}
-	if (verbose) fprintf(stderr, " %s() malloc(msg_hdr) = %d bytes\n", __func__, msg_hdr_sz);
-	memset(msg_hdr, 0, msg_hdr_sz);
-
-	/* Allocate I/O vector array */
-	msg_iov_sz = sizeof(*msg_iov) * iov_array_sz;
-	msg_iov = malloc(msg_iov_sz);
-	if (!msg_iov) {
-		fprintf(stderr, "ERROR: %s() failed in malloc(msg_iov)", __func__);
-		exit(EXIT_FAIL_MEM);
-	}
-	if (verbose) fprintf(stderr, " %s() msg_iov[%d] = %d bytes\n", __func__,
-			     iov_array_sz, msg_iov_sz);
-	memset(msg_iov, 0, msg_iov_sz);
+	msg_buf = malloc_payload_buffer(msg_sz); /* Alloc payload buffer */
+	msg_hdr = malloc_msghdr();               /* Alloc msghdr setup structure */
+	msg_iov = malloc_iovec(iov_array_elems); /* Alloc I/O vector array */
 
 	/*** Setup packet structure for transmitting ***/
 
@@ -163,15 +183,15 @@ static int flood_with_sendmsg(int sockfd, struct sockaddr_storage *dest_addr,
 	msg_iov[0].iov_base = msg_buf;
 	msg_iov[0].iov_len  = msg_sz;
 	/* The io-vector supports scattered payload data, below add a simpel
-	 * testcase with same payload, adjust iov_array_sz > 1 to activate code
+	 * testcase with same payload, adjust iov_array_elems > 1 to activate code
 	 */
-	for (i = 1; i < iov_array_sz; i++) {
+	for (i = 1; i < iov_array_elems; i++) {
 		msg_iov[i].iov_base = msg_buf;
 		msg_iov[i].iov_len  = msg_sz;
 	}
 	/* Binding io-vector to packet setup struct */
-	msg_hdr->msg_iov     = msg_iov;
-	msg_hdr->msg_iovlen  = iov_array_sz;
+	msg_hdr->msg_iov    = msg_iov;
+	msg_hdr->msg_iovlen = iov_array_elems;
 
 	/* Flood loop */
 	for (cnt = 0; cnt < count; cnt++) {
