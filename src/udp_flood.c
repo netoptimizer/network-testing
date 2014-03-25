@@ -334,8 +334,8 @@ static void time_function(int sockfd, struct sockaddr_storage *dest_addr,
 	uint64_t tsc_begin,  tsc_end,  tsc_interval;
 	uint64_t time_begin, time_end, time_interval;
 	int cnt_send;
-	double pps;
-	int nanosecs;
+	double pps, ns_per_pkt, timesec;
+	int tsc_cycles;
 
 	time_begin = gettime();
 	tsc_begin  = rdtsc();
@@ -354,11 +354,14 @@ static void time_function(int sockfd, struct sockaddr_storage *dest_addr,
 	}
 
 	/* Stats */
-	pps      = cnt_send / ((double)time_interval / NANOSEC_PER_SEC);
-	nanosecs = tsc_interval / cnt_send;
-	printf(" - TSC cycles(%llu) per packet: %llu cycles (pkts send:%d) %.2f pps (time:%.2f sec)\n",
-	       tsc_interval, nanosecs, cnt_send, pps,
-	       ((double)time_interval / NANOSEC_PER_SEC));
+	pps        = cnt_send / ((double)time_interval / NANOSEC_PER_SEC);
+	tsc_cycles = tsc_interval / cnt_send;
+	ns_per_pkt = ((double)time_interval / cnt_send);
+	timesec    = ((double)time_interval / NANOSEC_PER_SEC);
+	printf(" - Per packet: %llu cycles(tsc) %.2f ns, %.2f pps (time:%.2f sec)\n"
+	       "   (packet count:%d tsc_interval:%llu)\n",
+	       tsc_cycles, ns_per_pkt, pps, timesec,
+	       cnt_send, tsc_interval);
 }
 
 int main(int argc, char *argv[])
