@@ -37,20 +37,33 @@ static int usage(char *argv[])
 	return EXIT_FAIL_OPTION;
 }
 
+/* Allocate payload buffer */
+static char *malloc_payload_buffer(int msg_sz)
+{
+	char * msg_buf = malloc(msg_sz);
+
+	if (!msg_buf) {
+		fprintf(stderr, "ERROR: %s() failed in malloc() (caller: 0x%x)",
+			__func__, __builtin_return_address(0));
+		exit(EXIT_FAIL_MEM);
+	}
+	memset(msg_buf, 0, msg_sz);
+	if (verbose)
+		fprintf(stderr, " - caller(0x%x) malloc(msg_buf) = %d bytes\n",
+			__builtin_return_address(0), msg_sz);
+
+	return msg_buf;
+}
+
 static int flood_with_sendto(int sockfd, struct sockaddr_storage *dest_addr,
 			     int count, int msg_sz)
 {
 	char *msg_buf;
-	int cnt, res;
+	int cnt, res = 0;
 	socklen_t addrlen = sockaddr_len(dest_addr);
 
 	/* Allocate payload buffer */
-	msg_buf = malloc(msg_sz);
-	if (!msg_buf) {
-		fprintf(stderr, "ERROR: %s() failed in malloc()", __func__);
-		exit(EXIT_FAIL_MEM);
-	}
-	memset(msg_buf, 0, msg_sz);
+	msg_buf = malloc_payload_buffer(msg_sz);
 
 	/* Flood loop */
 	for (cnt = 0; cnt < count; cnt++) {
@@ -117,13 +130,7 @@ static int flood_with_sendmsg(int sockfd, struct sockaddr_storage *dest_addr,
 	socklen_t addrlen = sockaddr_len(dest_addr);
 
 	/* Allocate payload buffer */
-	msg_buf = malloc(msg_sz);
-	if (!msg_buf) {
-		fprintf(stderr, "ERROR: %s() failed in malloc(msg_buf)", __func__);
-		exit(EXIT_FAIL_MEM);
-	}
-	if (verbose) fprintf(stderr, " %s() malloc(msg_buf) = %d bytes\n", __func__, msg_sz);
-	memset(msg_buf, 0, msg_sz);
+	msg_buf = malloc_payload_buffer(msg_sz);
 
 	/* Allocate setup struct */
 	msg_hdr_sz = sizeof(*msg_hdr);
