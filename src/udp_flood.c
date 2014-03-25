@@ -177,13 +177,15 @@ static int flood_with_sendmsg(int sockfd, struct sockaddr_storage *dest_addr,
 	for (cnt = 0; cnt < count; cnt++) {
 		res = sendmsg(sockfd, msg_hdr, 0);
 		if (res < 0) {
-			fprintf(stderr, "Managed to send %d packets\n", cnt);
-			perror("- sendmsg");
-			goto out;
+			goto error;
 		}
 	}
 	res = cnt;
-
+	goto out;
+error:
+	/* Error case */
+	fprintf(stderr, "Managed to send %d packets\n", cnt);
+	perror("- sendmsg");
 out:
 	free(msg_iov);
 	free(msg_hdr);
