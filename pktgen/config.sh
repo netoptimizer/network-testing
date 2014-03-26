@@ -24,6 +24,8 @@ MAC_eth53_albpd42="00:12:c0:4c:4b:5b"
 MAC_eth54_albpd42="00:12:c0:4c:4b:5a"
 MAC_eth55_albpd42="00:12:c0:4c:4b:59"
 MAC_eth56_albpd42="00:12:c0:4c:4b:58"
+MAC_eth61_albpd42="00:1b:21:d7:77:f8"
+MAC_eth62_albpd42="00:1b:21:d7:77:f9"
 MAC_eth81_albpd42="00:1b:21:3c:9d:f8"
 MAC_eth82_albpd42="00:1b:21:3c:9d:f9"
 
