@@ -33,8 +33,7 @@ function root_check_run_with_sudo() {
             sudo "$0" "$@"
             exit $?
 	fi
-	echo "ERROR: cannot perform sudo run of $0"
-	exit 4
+	err 4 "cannot perform sudo run of $0"
     fi
 }
 
