@@ -8,6 +8,7 @@ function usage() {
     echo "  -s : packet size"
     echo "  -d : output device"
     echo "  -m : destination MAC-addr"
+    echo "  -t : threads to start"
     echo "  -v : verbose"
     echo "  -x : debug"
     echo ""
@@ -15,7 +16,7 @@ function usage() {
 
 ##  --- Parse command line arguments / parameters ---
 ## echo "Commandline options:"
-while getopts "s:d:m:vx" option; do
+while getopts "s:d:m:t:vx" option; do
     case $option in
         s)
           export PKT_SIZE=$OPTARG
@@ -28,6 +29,11 @@ while getopts "s:d:m:vx" option; do
         m) # MAC
           export DST_MAC=$OPTARG
 	  info "Destination MAC set to: $DST_MAC"
+          ;;
+        t)
+          export NUM_THREADS=$OPTARG
+	  let "NUM_THREADS -= 1"
+	  info "Number of threads to start: $OPTARG (0 to $NUM_THREADS)"
           ;;
         v)
           info "- Verbose mode -"
