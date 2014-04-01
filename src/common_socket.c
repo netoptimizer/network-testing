@@ -61,6 +61,20 @@ int Setsockopt (int fd, int level, int optname, const void *optval,
 	return res;
 }
 
+int Bind(int sockfd, const struct sockaddr_storage *addr) {
+	socklen_t addrlen = sockaddr_len(addr);
+	int res = bind(sockfd, (struct sockaddr *)addr, addrlen);
+
+	if (res < 0) {
+		fprintf(stderr, "ERROR: %s() failed (%d) errno(%d) ",
+			__func__, res, errno);
+		perror("- bind");
+		close(sockfd);
+		exit(EXIT_FAIL_SOCK);
+	}
+	return res;
+}
+
 /* Helpers */
 
 /* Setup a sockaddr_in{,6} depending on IPv4 or IPv6 address */
