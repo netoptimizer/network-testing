@@ -6,8 +6,10 @@ function usage() {
     echo ""
     echo "Usage: $0 [-vx] [-s pkt_size]"
     echo "  -s : packet size"
-    echo "  -d : output device"
+    echo "  -i : output interface/device"
+    echo "  -d : destination IP"
     echo "  -m : destination MAC-addr"
+    echo "  -t : threads to start"
     echo "  -v : verbose"
     echo "  -x : debug"
     echo ""
@@ -15,19 +17,28 @@ function usage() {
 
 ##  --- Parse command line arguments / parameters ---
 ## echo "Commandline options:"
-while getopts "s:d:m:vx" option; do
+while getopts "s:i:d:m:t:vx" option; do
     case $option in
         s)
           export PKT_SIZE=$OPTARG
 	  info "Packet size set to: $PKT_SIZE bytes"
           ;;
-        d) # device
+        d) # destination IP
+          export DEST_IP=$OPTARG
+	  info "Destination IP set to: $DEST_IP"
+          ;;
+        i) # interface
           export DEV=$OPTARG
 	  info "Output device set to: $DEV"
           ;;
         m) # MAC
           export DST_MAC=$OPTARG
 	  info "Destination MAC set to: $DST_MAC"
+          ;;
+        t)
+          export NUM_THREADS=$OPTARG
+	  let "NUM_THREADS -= 1"
+	  info "Number of threads to start: $OPTARG (0 to $NUM_THREADS)"
           ;;
         v)
           info "- Verbose mode -"
@@ -50,7 +61,20 @@ if [ -z "$PKT_SIZE" ]; then
     info "Default packet size set to: set to: $PKT_SIZE bytes"
 fi
 
+if [ -z "$NUM_THREADS" ]; then
+    # Zero threads means one thread, because CPU numbers are zero indexed
+    export NUM_THREADS=0
+fi
+
 if [ -z "$DEV" ]; then
     usage
     err 2 "Please specify output device"
+fi
+
+if [ -z "$DST_MAC" ]; then
+    warn "Missing destination MAC address"
+fi
+
+if [ -z "$DEST_IP" ]; then
+    warn "Missing destination IP address"
 fi

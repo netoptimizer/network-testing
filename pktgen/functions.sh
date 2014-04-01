@@ -22,6 +22,21 @@ function info() {
     echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')] INFO : $@"
 }
 
+## -- General shell tricks --
+
+function root_check_run_with_sudo() {
+    # Trick so, program can be run as normal user, will just use "sudo"
+    #  call as root_check_run_as_sudo "$@"
+    if [ "$EUID" -ne 0 ]; then
+	if [ -x $0 ]; then # Directly executable use sudo
+	    info "Not root, running with sudo"
+            sudo "$0" "$@"
+            exit $?
+	fi
+	err 4 "cannot perform sudo run of $0"
+    fi
+}
+
 ## -- Generic proc commands -- ##
 
 function pgset() {
