@@ -3,7 +3,7 @@
 #  Author: Jesper Dangaard Brouer <brouer@redhat.com>
 #
 SRCS =  ipv6_example01.c udp_example02.c udp_echo.c udp_client_echo.c \
-	raw_packet_send.c udp_flood.c syscall_overhead.c
+	raw_packet_send.c udp_flood.c udp_sink.c syscall_overhead.c
 
 OBJECTS = common_socket.o common.o
 HEADERS = ${OBJECTS:.o=.h}
