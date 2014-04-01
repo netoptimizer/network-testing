@@ -10,6 +10,8 @@
 
 #include <stdint.h>
 
+extern int verbose;
+
 inline uint64_t rdtsc()
 {
 	uint32_t low, high;
@@ -18,5 +20,7 @@ inline uint64_t rdtsc()
 }
 
 unsigned long long gettime(void);
+
+char *malloc_payload_buffer(int msg_sz);
 
 #endif /* COMMON_H */

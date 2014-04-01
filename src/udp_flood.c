@@ -29,30 +29,12 @@
 #include "common.h"
 #include "common_socket.h"
 
-static int verbose = 1;
-
 static int usage(char *argv[])
 {
 	printf("-= ERROR: Parameter problems =-\n", argv[0]);
 	printf(" Usage: %s [-c count] [-p port] [-m payloadsize] [-4] [-6] [-v] IPADDR\n\n",
 	       argv[0]);
 	return EXIT_FAIL_OPTION;
-}
-
-/* Allocate payload buffer */
-static char *malloc_payload_buffer(int msg_sz)
-{
-	char * msg_buf = malloc(msg_sz);
-
-	if (!msg_buf) {
-		fprintf(stderr, "ERROR: %s() failed in malloc() (caller: 0x%x)",
-			__func__, __builtin_return_address(0));
-		exit(EXIT_FAIL_MEM);
-	}
-	memset(msg_buf, 0, msg_sz);
-	if (verbose)
-		fprintf(stderr, " - malloc(msg_buf) = %d bytes\n", msg_sz);
-	return msg_buf;
 }
 
 /* Allocate struct msghdr setup structure for sendmsg/recvmsg */
