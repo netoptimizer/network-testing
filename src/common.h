@@ -10,8 +10,6 @@
 
 #include <stdint.h>
 
-#define NANOSEC_PER_SEC 1000000000 /* 10^9 */
-
 inline uint64_t rdtsc()
 {
 	uint32_t low, high;
