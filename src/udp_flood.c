@@ -254,7 +254,7 @@ out:
 /* Notice: double "m" in sendmmsg
  * - sending multible packet in one syscall
  */
-static int flood_with_sendmmsg(int sockfd, struct sockaddr_storage *dest_addr,
+static int flood_with_sendMmsg(int sockfd, struct sockaddr_storage *dest_addr,
 			       int count, int msg_sz)
 {
 	char          *msg_buf;  /* payload data */
@@ -262,10 +262,10 @@ static int flood_with_sendmmsg(int sockfd, struct sockaddr_storage *dest_addr,
 	unsigned int  msg_hdr_sz;
 	unsigned int  msg_iov_sz;
 	unsigned int  iov_array_elems = 1; /*adjust to test scattered payload */
-	unsigned int  burst = 32;
+	unsigned int  batch = 32;
 	int i;
 
-	count = count / burst;
+	count = count / batch;
 
 	/* struct *mmsghdr -  pointer to an array of mmsghdr structures.
 	 *   *** Notice: double "m" in mmsghdr ***
@@ -277,8 +277,11 @@ static int flood_with_sendmmsg(int sockfd, struct sockaddr_storage *dest_addr,
 	int cnt, res, pkt;
 	socklen_t addrlen = sockaddr_len(dest_addr);
 
+	if (verbose > 0)
+		fprintf(stderr, " - batching %d packets in sendmmsg\n", batch);
+
 	msg_buf  = malloc_payload_buffer(msg_sz); /* Alloc payload buffer */
-	mmsg_hdr = malloc_mmsghdr(burst);         /* Alloc mmsghdr array */
+	mmsg_hdr = malloc_mmsghdr(batch);         /* Alloc mmsghdr array */
 	msg_iov  = malloc_iovec(iov_array_elems); /* Alloc I/O vector array */
 
 	/*** Setup packet structure for transmitting ***/
@@ -294,7 +297,7 @@ static int flood_with_sendmmsg(int sockfd, struct sockaddr_storage *dest_addr,
 		msg_iov[i].iov_len  = msg_sz;
 	}
 
-	for (pkt = 0; pkt < burst; pkt++) {
+	for (pkt = 0; pkt < batch; pkt++) {
 		/* The destination addr */
 		mmsg_hdr[pkt].msg_hdr.msg_name    = dest_addr;
 		mmsg_hdr[pkt].msg_hdr.msg_namelen = addrlen;
@@ -305,14 +308,14 @@ static int flood_with_sendmmsg(int sockfd, struct sockaddr_storage *dest_addr,
 
 	/* Flood loop */
 	for (cnt = 0; cnt < count; cnt++) {
-//		res = sendmmsg(sockfd, mmsg_hdr, burst, 0);
-		res = syscall(__NR_sendmmsg, sockfd, mmsg_hdr, burst, 0);
+//		res = sendmmsg(sockfd, mmsg_hdr, batch, 0);
+		res = syscall(__NR_sendmmsg, sockfd, mmsg_hdr, batch, 0);
 
 		if (res < 0) {
 			goto error;
 		}
 	}
-	res = cnt * burst;
+	res = cnt * batch;
 	goto out;
 error:
 	/* Error case */
@@ -341,7 +344,7 @@ static void time_function(int sockfd, struct sockaddr_storage *dest_addr,
 	tsc_begin  = rdtsc();
 	cnt_send = func(sockfd, dest_addr, count, msg_sz);
 	//cnt_send = flood_with_sendmsg(sockfd, dest_addr, count, msg_sz);
-	//cnt_send = flood_with_sendtp(sockfd, dest_addr, count, msg_sz);
+	//cnt_send = flood_with_sendto(sockfd, dest_addr, count, msg_sz);
 	tsc_end  = rdtsc();
 	time_end = gettime();
 	tsc_interval  = tsc_end  - tsc_begin;
@@ -419,7 +422,7 @@ int main(int argc, char *argv[])
 	time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendmsg);
 
 	printf("\nPerformance of: sendMmsg()\n");
-	time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendmmsg);
+	time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendMmsg);
 
 	close(sockfd);
 }
