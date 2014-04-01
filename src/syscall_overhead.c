@@ -14,33 +14,11 @@
 #include <stdio.h>
 #include <stdlib.h> /* exit(3) */
 
-#include <time.h>
-#include <sys/time.h>
+#include "global.h"
+#include "common.h"
 
 #define LOOPS    100000000
 #define SYSCALLS LOOPS
-#define NANOSEC_PER_SEC 1000000000 /* 10^9 */
-
-inline uint64_t rdtsc()
-{
-	uint32_t low, high;
-	asm volatile("rdtsc" : "=a" (low), "=d" (high));
-	return low  | (((uint64_t )high ) << 32);
-}
-
-/* gettime returns the current time of day in nanoseconds. */
-uint64_t gettime(void)
-{
-	struct timespec t;
-	int res;
-
-	res = clock_gettime(CLOCK_MONOTONIC, &t);
-	if (res < 0) {
-		fprintf(stderr, "error with gettimeofday! (%i)\n", res);
-		exit(2);
-	}
-	return (uint64_t) t.tv_sec * NANOSEC_PER_SEC + t.tv_nsec;
-}
 
 int main()
 {
