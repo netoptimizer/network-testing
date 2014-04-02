@@ -15,6 +15,8 @@ LIBS=-lrt
 LIBS_PCAP=-lpcap
 
 CFLAGS=-Wall
+#OLEVEL=-O6
+OLEVEL=-O2
 
 all: $(TARGETS)
 
@@ -26,11 +28,11 @@ $(TARGETS): $(OBJECTS)
 
 # OBJECTS
 %.o: %.c $(HEADERS) global.h Makefile
-	$(CC) $(CFLAGS) -c  $< -o $@
+	$(CC) $(CFLAGS) $(OLEVEL) -c  $< -o $@
 
 # TARGETS
 .c: $<
-	gcc $(LIBS) -o $@ $< $(OBJECTS)
+	gcc $(OLEVEL) $(LIBS) -o $@ $< $(OBJECTS)
 
 pcap_timeread: pcap_timeread.c
 	gcc -o $@ $(LIBS_PCAP) $<

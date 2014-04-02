@@ -46,14 +46,8 @@ static int sink_with_read(int sockfd, int count, int batch) {
 
 	for (i = 0; i < count; i++) {
 		res = read(sockfd, buffer, buf_sz);
-		if (res < 0) {
-			fprintf(stderr, "ERROR: %s() failed (%d) errno(%d) ",
-				__func__, res, errno);
-			perror("- read");
-			free(buffer);
-			close(sockfd);
-			exit(EXIT_FAIL_SOCK);
-		}
+		if (res < 0)
+			goto error;
 		total += res;
 	}
 	if (verbose > 0)
@@ -61,6 +55,14 @@ static int sink_with_read(int sockfd, int count, int batch) {
 
 	free(buffer);
 	return i;
+
+ error: /* ugly construct to make sure the loop is small */
+	fprintf(stderr, "ERROR: %s() failed (%d) errno(%d) ",
+		__func__, res, errno);
+	perror("- read");
+	free(buffer);
+	close(sockfd);
+	exit(EXIT_FAIL_SOCK);
 }
 
 static int sink_with_recvfrom(int sockfd, int count, int batch) {
@@ -70,14 +72,8 @@ static int sink_with_recvfrom(int sockfd, int count, int batch) {
 
 	for (i = 0; i < count; i++) {
 		res = recvfrom(sockfd, buffer, buf_sz, 0, NULL, NULL);
-		if (res < 0) {
-			fprintf(stderr, "ERROR: %s() failed (%d) errno(%d) ",
-				__func__, res, errno);
-			perror("- read");
-			free(buffer);
-			close(sockfd);
-			exit(EXIT_FAIL_SOCK);
-		}
+		if (res < 0)
+			goto error;
 		total += res;
 	}
 	if (verbose > 0)
@@ -85,6 +81,14 @@ static int sink_with_recvfrom(int sockfd, int count, int batch) {
 
 	free(buffer);
 	return i;
+
+ error: /* ugly construct to make sure the loop is small */
+	fprintf(stderr, "ERROR: %s() failed (%d) errno(%d) ",
+		__func__, res, errno);
+	perror("- read");
+	free(buffer);
+	close(sockfd);
+	exit(EXIT_FAIL_SOCK);
 }
 
 

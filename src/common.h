@@ -23,4 +23,14 @@ unsigned long long gettime(void);
 
 char *malloc_payload_buffer(int msg_sz);
 
+/* Using __builtin_constant_p(x) to ignore cases where the return
+ * value is always the same.
+ */
+# ifndef likely
+#  define likely(x)	(__builtin_constant_p(x) ? !!(x) : __builtin_expect((x),1))
+# endif
+# ifndef unlikely
+#  define unlikely(x)	(__builtin_constant_p(x) ? !!(x) : __builtin_expect((x),0))
+# endif
+
 #endif /* COMMON_H */
