@@ -54,7 +54,7 @@ char *malloc_payload_buffer(int msg_sz)
 	char * msg_buf = malloc(msg_sz);
 
 	if (!msg_buf) {
-		fprintf(stderr, "ERROR: %s() failed in malloc() (caller: 0x%x)",
+		fprintf(stderr, "ERROR: %s() failed in malloc() (caller: 0x%p)\n",
 			__func__, __builtin_return_address(0));
 		exit(EXIT_FAIL_MEM);
 	}

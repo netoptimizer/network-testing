@@ -143,7 +143,7 @@ struct msghdr *malloc_msghdr()
 
 	msg_hdr = malloc(msg_hdr_sz);
 	if (!msg_hdr) {
-		fprintf(stderr, "ERROR: %s() failed in malloc() (caller: 0x%x)",
+		fprintf(stderr, "ERROR: %s() failed in malloc() (caller: 0x%p)\n",
 			__func__, __builtin_return_address(0));
 		exit(EXIT_FAIL_MEM);
 	}
@@ -165,7 +165,7 @@ struct mmsghdr *malloc_mmsghdr(unsigned int array_elems)
 	memsz = sizeof(struct mmsghdr) * array_elems;
 	mmsg_hdr_vec = malloc(memsz);
 	if (!mmsg_hdr_vec) {
-		fprintf(stderr, "ERROR: %s() failed in malloc() (caller: 0x%x)",
+		fprintf(stderr, "ERROR: %s() failed in malloc() (caller: 0x%p)\n",
 			__func__, __builtin_return_address(0));
 		exit(EXIT_FAIL_MEM);
 	}
@@ -187,7 +187,7 @@ struct iovec *malloc_iovec(unsigned int iov_array_elems)
 	msg_iov_memsz = sizeof(*msg_iov) * iov_array_elems;
 	msg_iov = malloc(msg_iov_memsz);
 	if (!msg_iov) {
-		fprintf(stderr, "ERROR: %s() failed in malloc() (caller: 0x%x)",
+		fprintf(stderr, "ERROR: %s() failed in malloc() (caller: 0x%p)\n",
 			__func__, __builtin_return_address(0));
 		exit(EXIT_FAIL_MEM);
 	}
