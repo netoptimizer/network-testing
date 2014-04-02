@@ -304,7 +304,7 @@ int main(int argc, char *argv[])
 	memset(&dest_addr, 0, sizeof(dest_addr));
 
 	/* Parse commands line args */
-	while ((c = getopt(argc, argv, "c:l:64v:")) != -1) {
+	while ((c = getopt(argc, argv, "c:m:64v:")) != -1) {
 		if (c == 'c') count       = atoi(optarg);
 		if (c == 'p') dest_port   = atoi(optarg);
 		if (c == 'm') msg_sz      = atoi(optarg);
