@@ -33,14 +33,15 @@
 
 static int usage(char *argv[])
 {
-	printf("-= ERROR: Parameter problems =-\n", argv[0]);
+	printf("-= ERROR: Parameter problems =-\n");
 	printf(" Usage: %s [-c count] [-l listen_port] [-4] [-6] [-v]\n\n",
 	       argv[0]);
 	return EXIT_FAIL_OPTION;
 }
 
 static int sink_with_read(int sockfd, int count, int batch) {
-	int i, res, cnt = 0, total = 0;
+	int i, res;
+	uint64_t total = 0;
 	int buf_sz = 4096;
 	char *buffer = malloc_payload_buffer(buf_sz);
 
@@ -51,7 +52,7 @@ static int sink_with_read(int sockfd, int count, int batch) {
 		total += res;
 	}
 	if (verbose > 0)
-		printf(" - read %d bytes in %d packets\n", total, i);
+		printf(" - read %lu bytes in %d packets\n", total, i);
 
 	free(buffer);
 	return i;
@@ -66,7 +67,8 @@ static int sink_with_read(int sockfd, int count, int batch) {
 }
 
 static int sink_with_recvfrom(int sockfd, int count, int batch) {
-	int i, res, cnt = 0, total = 0;
+	int i, res;
+	uint64_t total = 0;
 	int buf_sz = 4096;
 	char *buffer = malloc_payload_buffer(buf_sz);
 
@@ -77,7 +79,8 @@ static int sink_with_recvfrom(int sockfd, int count, int batch) {
 		total += res;
 	}
 	if (verbose > 0)
-		printf(" - read %d bytes in %d packets\n", total, i);
+		printf(" - read %lu bytes in %d packets = %lu bytes payload\n",
+		       total, i, total / i);
 
 	free(buffer);
 	return i;
@@ -93,7 +96,8 @@ static int sink_with_recvfrom(int sockfd, int count, int batch) {
 
 
 static int sink_with_recvmsg(int sockfd, int count, int batch) {
-	int i, res, total = 0;
+	int i, res;
+	uint64_t total = 0;
 	int buf_sz = 4096;
 	char *buffer = malloc_payload_buffer(buf_sz);
 	struct msghdr *msg_hdr;  /* struct for setting up transmit */
@@ -135,7 +139,8 @@ static int sink_with_recvmsg(int sockfd, int count, int batch) {
 		total += res;
 	}
 	if (verbose > 0)
-		printf(" - read %d bytes in %d packets\n", total, i);
+		printf(" - read %lu bytes in %d packets = %lu bytes payload\n",
+		       total, i, total / i);
 
 	free(msg_iov);
 	free(msg_hdr);
@@ -151,12 +156,24 @@ static int sink_with_recvmsg(int sockfd, int count, int batch) {
 	exit(EXIT_FAIL_SOCK);
 }
 
+/*
+ For understanding 'recvmmsg' / mmsghdr data structures
+ ======================================================
+
+ int recvmmsg(int sockfd, struct mmsghdr *msgvec, unsigned int vlen,
+              unsigned int flags, struct timespec *timeout);
+
+	struct mmsghdr {
+		struct msghdr msg_hdr;  // Message header
+		unsigned int  msg_len;  // Number of received bytes
+	};
+*/
 
 static int sink_with_recvMmsg(int sockfd, int count, int batch) {
-	int cnt, i, res, pkt, total = 0;
+	int cnt, i, res, pkt;
+	uint64_t total = 0, packets;
 	int buf_sz = 4096;
 	char *buffer = malloc_payload_buffer(buf_sz);
-	struct msghdr *msg_hdr;  /* struct for setting up transmit */
 	struct iovec  *msg_iov;  /* io-vector: array of pointers to payload data */
 	unsigned int iov_array_elems = 1; /* test scattered payload */
 
@@ -200,15 +217,18 @@ static int sink_with_recvMmsg(int sockfd, int count, int batch) {
 //		res = syscall(__NR_recvmmsg, sockfd, mmsg_hdr, batch, 0, NULL);
 		if (res < 0)
 			goto error;
-		total += res;
+		for (pkt = 0; pkt < batch; pkt++)
+			total += mmsg_hdr[pkt].msg_len;
 	}
+	packets = cnt * batch;
 	if (verbose > 0)
-		printf(" - read %d bytes in %d packets\n", total, cnt);
+		printf(" - read %lu bytes in %lu packets= %lu bytes payload (loop %d)\n",
+		       total, packets, total / packets, cnt);
 
 	free(msg_iov);
 	free(mmsg_hdr);
 	free(buffer);
-	return cnt * batch;
+	return packets;
 
  error: /* ugly construct to make sure the loop is small */
 	fprintf(stderr, "ERROR: %s() failed (%d) errno(%d) ",
@@ -226,11 +246,10 @@ static int sink_with_recvMmsg(int sockfd, int count, int batch) {
 static void time_function(int sockfd, int count, int repeat, int batch,
 			  int (*func)(int sockfd, int count, int batch))
 {
-	uint64_t tsc_begin,  tsc_end,  tsc_interval;
+	uint64_t tsc_begin,  tsc_end,  tsc_interval, tsc_cycles;
 	uint64_t time_begin, time_end, time_interval;
 	int cnt_recv, j;
 	double pps, ns_per_pkt, timesec;
-	int tsc_cycles;
 	#define TMPMAX 4096
 	char buffer[TMPMAX];
 	int res;
@@ -270,8 +289,8 @@ static void time_function(int sockfd, int count, int repeat, int batch,
 		tsc_cycles = tsc_interval / cnt_recv;
 		ns_per_pkt = ((double)time_interval / cnt_recv);
 		timesec    = ((double)time_interval / NANOSEC_PER_SEC);
-		printf(" - Per packet: %llu cycles(tsc) %.2f ns, %.2f pps (time:%.2f sec)\n"
-		       "   (packet count:%d tsc_interval:%llu)\n",
+		printf(" - Per packet: %lu cycles(tsc) %.2f ns, %.2f pps (time:%.2f sec)\n"
+		       "   (packet count:%d tsc_interval:%lu)\n",
 		       tsc_cycles, ns_per_pkt, pps, timesec,
 		       cnt_recv, tsc_interval);
 	}
