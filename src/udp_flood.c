@@ -295,7 +295,7 @@ int main(int argc, char *argv[])
 	/* Default settings */
 	int addr_family = AF_INET; /* Default address family */
 	int count = 1000000;
-	int msg_sz = 32; /* 32 + 8(UDP) + 20(IP) + 4(Eth-CRC) = 64 bytes */
+	int msg_sz = 18; /* 18 +14(eth)+8(UDP)+20(IP)+4(Eth-CRC) = 64 bytes */
 	uint16_t dest_port = 6666;
 	char *dest_ip;
 
