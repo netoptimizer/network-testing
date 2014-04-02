@@ -152,6 +152,76 @@ static int sink_with_recvmsg(int sockfd, int count, int batch) {
 }
 
 
+static int sink_with_recvMmsg(int sockfd, int count, int batch) {
+	int cnt, i, res, pkt, total = 0;
+	int buf_sz = 4096;
+	char *buffer = malloc_payload_buffer(buf_sz);
+	struct msghdr *msg_hdr;  /* struct for setting up transmit */
+	struct iovec  *msg_iov;  /* io-vector: array of pointers to payload data */
+	unsigned int iov_array_elems = 1; /* test scattered payload */
+
+	/* struct *mmsghdr -  pointer to an array of mmsghdr structures.
+	 *   *** Notice: double "m" in mmsghdr ***
+	 * Allows the caller to transmit multiple messages on a socket
+	 * using a single system call
+	 */
+	struct mmsghdr *mmsg_hdr;
+
+	mmsg_hdr = malloc_mmsghdr(batch);         /* Alloc mmsghdr array */
+	msg_iov  = malloc_iovec(iov_array_elems); /* Alloc I/O vector array */
+
+	count = count / batch;
+
+	/*** Setup packet structure for receiving
+	 ***/
+	/* Setup io-vector pointers for receiving payload data */
+	msg_iov[0].iov_base = buffer;
+	msg_iov[0].iov_len  = buf_sz;
+	/* The io-vector supports scattered payload data, below add a simpel
+	 * testcase with dst payload, adjust iov_array_elems > 1 to activate code
+	 */
+	for (i = 1; i < iov_array_elems; i++) {
+		msg_iov[i].iov_base = buffer;
+		msg_iov[i].iov_len  = buf_sz;
+	}
+
+	for (pkt = 0; pkt < batch; pkt++) {
+		/* The senders info is stored here but we don't care, so use NULL */
+		mmsg_hdr[pkt].msg_hdr.msg_name    = NULL;
+		mmsg_hdr[pkt].msg_hdr.msg_namelen = 0;
+		/* Binding io-vector to packet setup struct */
+		mmsg_hdr[pkt].msg_hdr.msg_iov    = msg_iov;
+		mmsg_hdr[pkt].msg_hdr.msg_iovlen = iov_array_elems;
+	}
+
+	/* Receive LOOP */
+	for (cnt = 0; cnt < count; cnt++) {
+		res = recvmmsg(sockfd, mmsg_hdr, batch, 0, NULL);
+//		res = syscall(__NR_recvmmsg, sockfd, mmsg_hdr, batch, 0, NULL);
+		if (res < 0)
+			goto error;
+		total += res;
+	}
+	if (verbose > 0)
+		printf(" - read %d bytes in %d packets\n", total, cnt);
+
+	free(msg_iov);
+	free(mmsg_hdr);
+	free(buffer);
+	return cnt * batch;
+
+ error: /* ugly construct to make sure the loop is small */
+	fprintf(stderr, "ERROR: %s() failed (%d) errno(%d) ",
+		__func__, res, errno);
+	perror("- recvmsg");
+	free(msg_iov);
+	free(mmsg_hdr);
+	free(buffer);
+	close(sockfd);
+	exit(EXIT_FAIL_SOCK);
+}
+
+
 
 static void time_function(int sockfd, int count, int repeat, int batch,
 			  int (*func)(int sockfd, int count, int batch))
@@ -251,6 +321,9 @@ int main(int argc, char *argv[])
 	}
 
 	Bind(sockfd, &listen_addr);
+
+	printf("\nPerformance of: recvMmsg() batch:32\n");
+	time_function(sockfd, count, repeat, 32, sink_with_recvMmsg);
 
 	printf("\nPerformance of: recvmsg()\n");
 	time_function(sockfd, count, repeat, 1, sink_with_recvmsg);
