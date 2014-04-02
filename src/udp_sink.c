@@ -39,7 +39,7 @@ static int usage(char *argv[])
 	return EXIT_FAIL_OPTION;
 }
 
-static int sink_with_read(int sockfd, int count) {
+static int sink_with_read(int sockfd, int count, int batch) {
 	int i, res, cnt = 0, total = 0;
 	int buf_sz = 4096;
 	char *buffer = malloc_payload_buffer(buf_sz);
@@ -63,7 +63,7 @@ static int sink_with_read(int sockfd, int count) {
 	return i;
 }
 
-static int sink_with_recvfrom(int sockfd, int count) {
+static int sink_with_recvfrom(int sockfd, int count, int batch) {
 	int i, res, cnt = 0, total = 0;
 	int buf_sz = 4096;
 	char *buffer = malloc_payload_buffer(buf_sz);
@@ -88,8 +88,8 @@ static int sink_with_recvfrom(int sockfd, int count) {
 }
 
 
-static void time_function(int sockfd, int count, int repeat,
-	int (*func)(int sockfd, int count))
+static void time_function(int sockfd, int count, int repeat, int batch,
+			  int (*func)(int sockfd, int count, int batch))
 {
 	uint64_t tsc_begin,  tsc_end,  tsc_interval;
 	uint64_t time_begin, time_end, time_interval;
@@ -118,7 +118,7 @@ static void time_function(int sockfd, int count, int repeat,
 
 		time_begin = gettime();
 		tsc_begin  = rdtsc();
-		cnt_recv = func(sockfd, count);
+		cnt_recv = func(sockfd, count, batch);
 		tsc_end  = rdtsc();
 		time_end = gettime();
 		tsc_interval  = tsc_end  - tsc_begin;
@@ -146,7 +146,7 @@ int main(int argc, char *argv[])
 {
 	int sockfd, c;
 	int count  = 1000000;
-	int repeat = 3;
+	int repeat = 2;
 
 	/* Default settings */
 	int addr_family = AF_INET; /* Default address family */
@@ -188,10 +188,10 @@ int main(int argc, char *argv[])
 	Bind(sockfd, &listen_addr);
 
 	printf("\nPerformance of: read()\n");
-	time_function(sockfd, count, repeat, sink_with_read);
+	time_function(sockfd, count, repeat, 0, sink_with_read);
 
 	printf("\nPerformance of: recvfrom()\n");
-	time_function(sockfd, count, repeat, sink_with_recvfrom);
+	time_function(sockfd, count, repeat, 0, sink_with_recvfrom);
 
 	close(sockfd);
 }
