@@ -24,4 +24,9 @@ void setup_sockaddr(int addr_family, struct sockaddr_storage *addr,
 
 socklen_t sockaddr_len(const struct sockaddr_storage *sockaddr);
 
+/* Memory alloc */
+extern struct  msghdr *malloc_msghdr();
+extern struct mmsghdr *malloc_mmsghdr(unsigned int array_elems);
+extern struct iovec *malloc_iovec(unsigned int iov_array_elems);
+
 #endif /* COMMON_SOCKET_H */
