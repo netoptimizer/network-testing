@@ -33,4 +33,18 @@ char *malloc_payload_buffer(int msg_sz);
 #  define unlikely(x)	(__builtin_constant_p(x) ? !!(x) : __builtin_expect((x),0))
 # endif
 
+
+static inline uint32_t cmpxchg(uint32_t *dst, uint32_t old, uint32_t new)
+{
+	volatile uint32_t *ptr = (volatile uint32_t *)dst;
+	uint32_t ret;
+
+	asm volatile("lock; cmpxchgl %2, %1"
+		     : "=a" (ret), "+m" (*ptr)
+		     : "r" (new), "0" (old)
+		     : "memory");
+
+	return ret;
+}
+
 #endif /* COMMON_H */
