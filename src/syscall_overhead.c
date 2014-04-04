@@ -26,7 +26,7 @@ int main()
 	uint64_t tsc_begin, tsc_end, tsc_interval;
 	uint64_t time_begin, time_end, time_interval;
 	double calls_per_sec, ns_per_call, timesec;
-	int tsc_cycles;
+	uint64_t tsc_cycles;
 
 	time_begin = gettime();
 	tsc_begin  = rdtsc();
@@ -44,15 +44,15 @@ int main()
 	ns_per_call  = ((double)time_interval / SYSCALLS);
 	timesec      = ((double)time_interval / NANOSEC_PER_SEC);
 
-	printf("Per syscall: %llu cycles(tsc) %.2f ns\n"
+	printf("Per syscall: %lu cycles(tsc) %.2f ns\n"
 	       "  - %.2f calls per sec (measurement periode time:%.2f sec)\n"
-	       "  - (loop count:%d tsc_interval:%llu)\n",
+	       "  - (loop count:%d tsc_interval:%lu)\n",
 	       tsc_cycles, ns_per_call, calls_per_sec, timesec,
 	       SYSCALLS, tsc_interval);
 
-	printf("TSC cycles: tsc_end(%llu)-tsc_begin(%llu) = %llu\n",
+	printf("TSC cycles: tsc_end(%lu)-tsc_begin(%lu) = %lu\n",
 	       tsc_begin, tsc_end, tsc_interval);
-	printf("TSC cycles per getuid() system call: %llu\n",
+	printf("TSC cycles per getuid() system call: %lu\n",
 	       tsc_cycles);
 
 	return 0;
