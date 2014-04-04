@@ -29,8 +29,6 @@
 #include "common.h"
 #include "common_socket.h"
 
-static int verbose = 1;
-
 static int usage(char *argv[])
 {
 	printf("-= ERROR: Parameter problems =-\n", argv[0]);
@@ -38,87 +36,6 @@ static int usage(char *argv[])
 	       argv[0]);
 	return EXIT_FAIL_OPTION;
 }
-
-/* Allocate payload buffer */
-static char *malloc_payload_buffer(int msg_sz)
-{
-	char * msg_buf = malloc(msg_sz);
-
-	if (!msg_buf) {
-		fprintf(stderr, "ERROR: %s() failed in malloc() (caller: 0x%x)",
-			__func__, __builtin_return_address(0));
-		exit(EXIT_FAIL_MEM);
-	}
-	memset(msg_buf, 0, msg_sz);
-	if (verbose)
-		fprintf(stderr, " - malloc(msg_buf) = %d bytes\n", msg_sz);
-	return msg_buf;
-}
-
-/* Allocate struct msghdr setup structure for sendmsg/recvmsg */
-static struct msghdr *malloc_msghdr()
-{
-	struct msghdr *msg_hdr;
-	unsigned int msg_hdr_sz = sizeof(*msg_hdr);
-
-	msg_hdr = malloc(msg_hdr_sz);
-	if (!msg_hdr) {
-		fprintf(stderr, "ERROR: %s() failed in malloc() (caller: 0x%x)",
-			__func__, __builtin_return_address(0));
-		exit(EXIT_FAIL_MEM);
-	}
-	memset(msg_hdr, 0, msg_hdr_sz);
-	if (verbose)
-		fprintf(stderr, " - malloc(msg_hdr) = %d bytes\n", msg_hdr_sz);
-	return msg_hdr;
-}
-
-/* Allocate vector array of struct mmsghdr pointers for sendmmsg/recvmmsg
- *  Notice: double "m" im mmsghdr
- */
-static struct mmsghdr *malloc_mmsghdr(unsigned int array_elems)
-{
-	struct mmsghdr *mmsg_hdr_vec;
-	unsigned int memsz;
-
-	//memsz = sizeof(*mmsg_hdr_vec) * array_elems;
-	memsz = sizeof(struct mmsghdr) * array_elems;
-	mmsg_hdr_vec = malloc(memsz);
-	if (!mmsg_hdr_vec) {
-		fprintf(stderr, "ERROR: %s() failed in malloc() (caller: 0x%x)",
-			__func__, __builtin_return_address(0));
-		exit(EXIT_FAIL_MEM);
-	}
-	memset(mmsg_hdr_vec, 0, memsz);
-	if (verbose)
-		fprintf(stderr, " - malloc(mmsghdr[%d]) = %d bytes\n",
-			array_elems, memsz);
-	return mmsg_hdr_vec;
-}
-
-/* Allocate I/O vector array of struct iovec.
- * (The structure supports scattered payloads)
- */
-static struct iovec *malloc_iovec(unsigned int iov_array_elems)
-{
-	struct iovec  *msg_iov;      /* io-vector: array of pointers to payload data */
-	unsigned int  msg_iov_memsz; /* array memory size */
-
-	msg_iov_memsz = sizeof(*msg_iov) * iov_array_elems;
-	msg_iov = malloc(msg_iov_memsz);
-	if (!msg_iov) {
-		fprintf(stderr, "ERROR: %s() failed in malloc() (caller: 0x%x)",
-			__func__, __builtin_return_address(0));
-		exit(EXIT_FAIL_MEM);
-	}
-	memset(msg_iov, 0, msg_iov_memsz);
-	if (verbose)
-		fprintf(stderr, " - malloc(msg_iov[%d]) = %d bytes\n",
-			iov_array_elems, msg_iov_memsz);
-	return msg_iov;
-}
-
-
 
 static int flood_with_sendto(int sockfd, struct sockaddr_storage *dest_addr,
 			     int count, int msg_sz)
@@ -254,7 +171,7 @@ out:
 /* Notice: double "m" in sendmmsg
  * - sending multible packet in one syscall
  */
-static int flood_with_sendmmsg(int sockfd, struct sockaddr_storage *dest_addr,
+static int flood_with_sendMmsg(int sockfd, struct sockaddr_storage *dest_addr,
 			       int count, int msg_sz)
 {
 	char          *msg_buf;  /* payload data */
@@ -262,10 +179,10 @@ static int flood_with_sendmmsg(int sockfd, struct sockaddr_storage *dest_addr,
 	unsigned int  msg_hdr_sz;
 	unsigned int  msg_iov_sz;
 	unsigned int  iov_array_elems = 1; /*adjust to test scattered payload */
-	unsigned int  burst = 32;
+	unsigned int  batch = 32;
 	int i;
 
-	count = count / burst;
+	count = count / batch;
 
 	/* struct *mmsghdr -  pointer to an array of mmsghdr structures.
 	 *   *** Notice: double "m" in mmsghdr ***
@@ -277,8 +194,11 @@ static int flood_with_sendmmsg(int sockfd, struct sockaddr_storage *dest_addr,
 	int cnt, res, pkt;
 	socklen_t addrlen = sockaddr_len(dest_addr);
 
+	if (verbose > 0)
+		fprintf(stderr, " - batching %d packets in sendmmsg\n", batch);
+
 	msg_buf  = malloc_payload_buffer(msg_sz); /* Alloc payload buffer */
-	mmsg_hdr = malloc_mmsghdr(burst);         /* Alloc mmsghdr array */
+	mmsg_hdr = malloc_mmsghdr(batch);         /* Alloc mmsghdr array */
 	msg_iov  = malloc_iovec(iov_array_elems); /* Alloc I/O vector array */
 
 	/*** Setup packet structure for transmitting ***/
@@ -294,7 +214,7 @@ static int flood_with_sendmmsg(int sockfd, struct sockaddr_storage *dest_addr,
 		msg_iov[i].iov_len  = msg_sz;
 	}
 
-	for (pkt = 0; pkt < burst; pkt++) {
+	for (pkt = 0; pkt < batch; pkt++) {
 		/* The destination addr */
 		mmsg_hdr[pkt].msg_hdr.msg_name    = dest_addr;
 		mmsg_hdr[pkt].msg_hdr.msg_namelen = addrlen;
@@ -305,14 +225,14 @@ static int flood_with_sendmmsg(int sockfd, struct sockaddr_storage *dest_addr,
 
 	/* Flood loop */
 	for (cnt = 0; cnt < count; cnt++) {
-//		res = sendmmsg(sockfd, mmsg_hdr, burst, 0);
-		res = syscall(__NR_sendmmsg, sockfd, mmsg_hdr, burst, 0);
+//		res = sendmmsg(sockfd, mmsg_hdr, batch, 0);
+		res = syscall(__NR_sendmmsg, sockfd, mmsg_hdr, batch, 0);
 
 		if (res < 0) {
 			goto error;
 		}
 	}
-	res = cnt * burst;
+	res = cnt * batch;
 	goto out;
 error:
 	/* Error case */
@@ -341,7 +261,7 @@ static void time_function(int sockfd, struct sockaddr_storage *dest_addr,
 	tsc_begin  = rdtsc();
 	cnt_send = func(sockfd, dest_addr, count, msg_sz);
 	//cnt_send = flood_with_sendmsg(sockfd, dest_addr, count, msg_sz);
-	//cnt_send = flood_with_sendtp(sockfd, dest_addr, count, msg_sz);
+	//cnt_send = flood_with_sendto(sockfd, dest_addr, count, msg_sz);
 	tsc_end  = rdtsc();
 	time_end = gettime();
 	tsc_interval  = tsc_end  - tsc_begin;
@@ -375,7 +295,7 @@ int main(int argc, char *argv[])
 	/* Default settings */
 	int addr_family = AF_INET; /* Default address family */
 	int count = 1000000;
-	int msg_sz = 32; /* 32 + 8(UDP) + 20(IP) + 4(Eth-CRC) = 64 bytes */
+	int msg_sz = 18; /* 18 +14(eth)+8(UDP)+20(IP)+4(Eth-CRC) = 64 bytes */
 	uint16_t dest_port = 6666;
 	char *dest_ip;
 
@@ -384,7 +304,7 @@ int main(int argc, char *argv[])
 	memset(&dest_addr, 0, sizeof(dest_addr));
 
 	/* Parse commands line args */
-	while ((c = getopt(argc, argv, "c:l:64v:")) != -1) {
+	while ((c = getopt(argc, argv, "c:m:64v:")) != -1) {
 		if (c == 'c') count       = atoi(optarg);
 		if (c == 'p') dest_port   = atoi(optarg);
 		if (c == 'm') msg_sz      = atoi(optarg);
@@ -419,7 +339,7 @@ int main(int argc, char *argv[])
 	time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendmsg);
 
 	printf("\nPerformance of: sendMmsg()\n");
-	time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendmmsg);
+	time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendMmsg);
 
 	close(sockfd);
 }

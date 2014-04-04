@@ -1,0 +1,42 @@
+/* This file need to be run with --cpp for c-preprocessor call.
+
+Command example:
+ trafgen --cpp --dev dummy0 --conf udp_example01.trafgen \
+  --cpu 2 --verbose \
+  --ring-size 500KiB
+*/
+#define ETH_P_IP	0x0800
+
+{
+  /* --- Ethernet Header --- */
+  /* NEED ADJUST */
+  0x90, 0xe2, 0xba, 0x0a, 0x56, 0xb5,  # MAC Destination eth5/ivy
+  0x00, 0x1b, 0x21, 0x3c, 0x9e, 0x6c,  # MAC Source eth31
+  const16(ETH_P_IP),
+
+  /* --- IPv4 Header --- */
+  0b01000101, 0,  /* IPv4 Version, IHL, TOS */
+  const16(46),    /* IPv4 Total Len (UDP len + IP hdr 20 bytes)*/
+  const16(2),     /* IPv4 Ident */
+  0b01000000, 0,  /* IPv4 Flags, Frag Off */
+  64,             /* IPv4 TTL */
+  17,             /* Proto UDP */
+  csumip(14, 33), /* IPv4 Checksum (IP header from, to) */
+
+  /* --- UDP Header --- */
+  /* NEED ADJUST */
+  192, 168, 31, 2,  /* Source IP */
+  192, 168, 31, 3,  /* Dest IP */
+
+  const16(9),    /* UDP Source Port e.g. drnd(2)*/
+  const16(6666), /* UDP Dest Port */
+  const16(26),   /* UDP length (UDP hdr 8 bytes + payload size */
+
+  /* UDP checksum can be dyn calc via csumudp(offset IP, offset TCP)
+   * which is csumudp(14, 34), but for UDP its allowed to be zero
+   */
+  const16(0),
+
+  /*** Payload ***/
+  fill('B', 18),
+}

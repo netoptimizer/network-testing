@@ -64,7 +64,7 @@ int recv_packet(int sockfd, const struct sockaddr_storage *dest_addr,
 		exit(5);
 	}
 	if (verbose > 1) {
-		printf("Recieved UDP packet of length:%d\n", len_recv);
+		printf("Received UDP packet of length:%d\n", len_recv);
 	}
 	return len_recv;
 }

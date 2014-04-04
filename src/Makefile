@@ -3,7 +3,7 @@
 #  Author: Jesper Dangaard Brouer <brouer@redhat.com>
 #
 SRCS =  ipv6_example01.c udp_example02.c udp_echo.c udp_client_echo.c \
-	raw_packet_send.c udp_flood.c syscall_overhead.c
+	raw_packet_send.c udp_flood.c udp_sink.c syscall_overhead.c
 
 OBJECTS = common_socket.o common.o
 HEADERS = ${OBJECTS:.o=.h}
@@ -13,6 +13,10 @@ TARGETS = ${SRCS:.c=}
 # librt needed for 'clock_gettime'
 LIBS=-lrt
 LIBS_PCAP=-lpcap
+
+CFLAGS=-Wall
+#OLEVEL=-O6
+OLEVEL=-O2
 
 all: $(TARGETS)
 
@@ -24,11 +28,11 @@ $(TARGETS): $(OBJECTS)
 
 # OBJECTS
 %.o: %.c $(HEADERS) global.h Makefile
-	$(CC) $(CFLAGS) -c  $< -o $@
+	$(CC) $(CFLAGS) $(OLEVEL) -c  $< -o $@
 
 # TARGETS
 .c: $<
-	gcc $(LIBS) -o $@ $< $(OBJECTS)
+	gcc $(OLEVEL) $(LIBS) -o $@ $< $(OBJECTS)
 
 pcap_timeread: pcap_timeread.c
 	gcc -o $@ $(LIBS_PCAP) $<

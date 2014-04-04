@@ -11,9 +11,11 @@
 #include <sys/time.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
+#include <string.h> /* memset */
 
 #include "global.h"
+
+int verbose = 1;
 
 /* Time code based on:
  *  https://github.com/dterei/Scraps/tree/master/c/time
@@ -44,4 +46,20 @@ uint64_t gettime(void)
 	}
 
 	return (uint64_t) t.tv_sec * NANOSEC_PER_SEC + t.tv_nsec;
+}
+
+/* Allocate payload buffer */
+char *malloc_payload_buffer(int msg_sz)
+{
+	char * msg_buf = malloc(msg_sz);
+
+	if (!msg_buf) {
+		fprintf(stderr, "ERROR: %s() failed in malloc() (caller: 0x%p)\n",
+			__func__, __builtin_return_address(0));
+		exit(EXIT_FAIL_MEM);
+	}
+	memset(msg_buf, 0, msg_sz);
+	if (verbose)
+		fprintf(stderr, " - malloc(msg_buf) = %d bytes\n", msg_sz);
+	return msg_buf;
 }
