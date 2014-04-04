@@ -47,4 +47,9 @@ static inline uint32_t cmpxchg(uint32_t *dst, uint32_t old, uint32_t new)
 	return ret;
 }
 
+int time_func(int loops,
+	      int (*func)(int loops, uint64_t* tsc_begin, uint64_t* tsc_end,
+			  uint64_t* time_begin, uint64_t* time_end)
+	);
+
 #endif /* COMMON_H */

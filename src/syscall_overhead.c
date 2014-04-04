@@ -1,4 +1,4 @@
-/* Quick program to measure the system call overhead
+/* Program to measure the system call overhead
  *
  * gcc -O2 -o syscall_overhead syscall_overhead.c -lrt
  *
@@ -18,42 +18,27 @@
 #include "common.h"
 
 #define LOOPS    100000000
-#define SYSCALLS LOOPS
+
+int loop_syscall_getuid(
+	int loops, uint64_t* tsc_begin, uint64_t* tsc_end,
+	uint64_t* time_begin, uint64_t* time_end)
+{
+	int i;
+
+	*time_begin = gettime();
+	*tsc_begin  = rdtsc();
+	for (i = 0; i < loops; i++) {
+		getuid();
+	}
+	*tsc_end  = rdtsc();
+	*time_end = gettime();
+	return i;
+}
 
 int main()
 {
-	int i;
-	uint64_t tsc_begin, tsc_end, tsc_interval;
-	uint64_t time_begin, time_end, time_interval;
-	double calls_per_sec, ns_per_call, timesec;
-	uint64_t tsc_cycles;
-
-	time_begin = gettime();
-	tsc_begin  = rdtsc();
-	for (i = 0; i < LOOPS; i++) {
-		getuid();
-	}
-	tsc_end  = rdtsc();
-	time_end = gettime();
-	tsc_interval  = tsc_end - tsc_begin;
-	time_interval = time_end - time_begin;
-
-	/* Stats */
-	calls_per_sec = SYSCALLS / ((double)time_interval / NANOSEC_PER_SEC);
-	tsc_cycles   = tsc_interval / SYSCALLS;
-	ns_per_call  = ((double)time_interval / SYSCALLS);
-	timesec      = ((double)time_interval / NANOSEC_PER_SEC);
-
-	printf("Per syscall: %lu cycles(tsc) %.2f ns\n"
-	       "  - %.2f calls per sec (measurement periode time:%.2f sec)\n"
-	       "  - (loop count:%d tsc_interval:%lu)\n",
-	       tsc_cycles, ns_per_call, calls_per_sec, timesec,
-	       SYSCALLS, tsc_interval);
-
-	printf("TSC cycles: tsc_end(%lu)-tsc_begin(%lu) = %lu\n",
-	       tsc_begin, tsc_end, tsc_interval);
-	printf("TSC cycles per getuid() system call: %lu\n",
-	       tsc_cycles);
+	printf("Measuring syscall getuid:\n");
+	time_func(LOOPS, loop_syscall_getuid);
 
 	return 0;
 }
