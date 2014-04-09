@@ -57,7 +57,7 @@ done
 shift $(( $OPTIND - 1 ))
 
 if [ -z "$PKT_SIZE" ]; then
-    export PKT_SIZE=1500
+    export PKT_SIZE=60
     info "Default packet size set to: set to: $PKT_SIZE bytes"
 fi
 
