@@ -1,6 +1,8 @@
 #
 # Common functions used by pktgen scripts
 #
+# Author: Jesper Dangaaard Brouer
+# License: GPL
 
 if [ ! -d /proc/net/pktgen ]; then
         modprobe pktgen
@@ -117,7 +119,13 @@ function start_run() {
     info "Running... ctrl^C to stop"
     cmd_pgctrl "start"
     info "Done"
+}
 
+function reset_all_threads() {
+    info "Resetting all threads"
+    # This might block if another start is running
+    cmd_pgctrl "reset"
+    info "Done - reset"
 }
 
 ## -- Thread control commands -- ##
@@ -148,16 +156,21 @@ function remove_threads() {
 }
 
 function add_device() {
-    if [ -z "$1" ]; then
-	echo "[$FUNCNAME] needs device arg"
+    if [ -z "$2" ]; then
+	echo "[$FUNCNAME] needs args device + thread"
 	exit 2;
     fi
-    local dev="$1"
+    local thread="$2"
+    local plain_device="$3"
+    if [ -n "$plain_device" ]; then
+	# Use if you don't want auto adding the @thread after dev name
+	local dev="$1"
+    else
+	local dev="$1@$thread"
+    fi
 
-    echo "Removing all devices from thread $PGDEV"
-    pgset "rem_device_all"
-    echo "Adding ${dev}"
-    pgset "add_device ${dev}"
+    echo "Adding ${dev} to thread:$thread"
+    cmd_thread $thread "add_device ${dev}"
 }
 
 function create_thread() {
