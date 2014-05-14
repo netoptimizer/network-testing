@@ -54,6 +54,7 @@ source ${basedir}/config.sh
 # is used for protecting this "if_list".  Other readers are given
 # lock-free access to the list under RCU read sections.
 #
+# (possible extra race)
 # Note, interface config changes (via proc) can occur while pktgen is
 # running, which worries me a bit.  I'm assuming proc_remove() takes
 # appropriate locks, to assure no writers exists after proc_remove()
@@ -69,6 +70,12 @@ function control_c()
 # trap keyboard interrupt (control-c)
 trap control_c SIGINT
 
+function write_to_interface() {
+    # Write something to proc file to test for races
+    # when the proc file gets removed while writing
+    echo "pkt_size $RANDOM" > /proc/net/pktgen/$DEV@0
+}
+
 # Run this in parallel in another thread/process
 function add_remove_loop() {
     while (true); do
@@ -77,6 +84,7 @@ function add_remove_loop() {
  	remove_thread $thread &
 	sleep 0.05
 	add_device $DEV $thread
+	write_to_interface
 	wait $!
 	#add_device $DEV $thread
 #	thread=2
@@ -90,6 +98,7 @@ function read_proc_file() {
 	echo -e "\n--- Reading proc files in parallel N:$i ---"
  	cat /proc/net/pktgen/kpktgend_0
 	if [ -e /proc/net/pktgen/$DEV@0 ]; then
+	    write_to_interface
 	    echo "READING interface file (to /dev/null)"
 	    cat /proc/net/pktgen/$DEV@0 > /dev/null
 	else
