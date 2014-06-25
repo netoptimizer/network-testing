@@ -85,7 +85,7 @@ int time_func(int loops,
 	tsc_interval  = tsc_end - tsc_begin;
 	time_interval = time_end - time_begin;
 
-	if ((loops =! loops_cnt))
+	if (loops != loops_cnt)
 		printf(" WARNING: Loop count(%d) not equal to loops(%d)\n",
 		       loops_cnt, loops);
 
