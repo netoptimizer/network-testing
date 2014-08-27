@@ -307,3 +307,15 @@ function set_udp_dst_range() {
     pgset "udp_dst_max $max"
 }
 
+# General func for setting $dev $key $value
+function dev_set_key_value() {
+    if [ -n "$2" ]; then
+	local dev="$1"
+	local key="$2"
+	local val="$3"
+	echo "- Dev:$dev Set $key=$val"
+	cmd_dev $dev "$key $val"
+    else
+	err 2 "[$FUNCNAME] input error"
+    fi
+}
