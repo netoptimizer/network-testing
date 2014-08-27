@@ -23,7 +23,7 @@ UDP_MAX=109
 # Threads
 min=0
 max=$NUM_THREADS
-remove_threads 0 15
+reset_all_threads
 create_threads 0 $NUM_THREADS
 
 for num in `seq $min $max`; do
