@@ -10,6 +10,7 @@ function usage() {
     echo "  -d : destination IP"
     echo "  -m : destination MAC-addr"
     echo "  -t : threads to start"
+    echo "  -c : SKB clones send before alloc new SKB"
     echo "  -b : HW level bursting of SKBs" #experimental feature
     echo "  -v : verbose"
     echo "  -x : debug"
@@ -18,7 +19,7 @@ function usage() {
 
 ##  --- Parse command line arguments / parameters ---
 ## echo "Commandline options:"
-while getopts "s:i:d:m:t:b:vx" option; do
+while getopts "s:i:d:m:t:c:b:vx" option; do
     case $option in
         s)
           export PKT_SIZE=$OPTARG
@@ -41,8 +42,12 @@ while getopts "s:i:d:m:t:b:vx" option; do
 	  let "NUM_THREADS -= 1"
 	  info "Number of threads to start: $OPTARG (0 to $NUM_THREADS)"
           ;;
+        c)
+	  export CLONE_SKB=$OPTARG
+	  info "CLONE_SKB: $OPTARG"
+          ;;
         b)
-          export BURST=$OPTARG
+	  export BURST=$OPTARG
 	  info "Experimental SKB bursting: $OPTARG"
           ;;
         v)

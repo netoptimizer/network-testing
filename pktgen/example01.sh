@@ -11,7 +11,7 @@ source ${basedir}/config.sh
 # Base Config
 DELAY="0"  # Zero means max speed
 COUNT="0"  # Zero means indefinitely
-CLONE_SKB="64"
+[ -z "$CLONE_SKB" ] && CLONE_SKB="64"
 
 # Packet setup
 UDP_MIN=9
