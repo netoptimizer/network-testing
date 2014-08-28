@@ -319,3 +319,16 @@ function dev_set_key_value() {
 	err 2 "[$FUNCNAME] input error"
     fi
 }
+
+# General func for setting $dev $key $value
+function dev_set_flag() {
+    if [ -n "$2" ]; then
+	local dev="$1"
+	local key=flag
+	local val="$2"
+	echo "- Dev:$dev Set $key $val"
+	cmd_dev $dev "$key $val"
+    else
+	err 2 "[$FUNCNAME] input error"
+    fi
+}
