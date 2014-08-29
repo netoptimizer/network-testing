@@ -263,6 +263,20 @@ function set_dst_ip_range() {
     pgset "dst_max $max"
 }
 
+# Input (min,max) IP numbers
+function set_src_ip_range() {
+    if [ -z "$2" ]; then
+	echo "[$FUNCNAME] input error"
+	exit 2
+    fi
+    local min=$1
+    local max=$2
+    echo "- Random IP source min:$min - max:$max"
+    pgset "flag IPSRC_RND"
+    pgset "src_min $min"
+    pgset "src_max $max"
+}
+
 # Setup flow generation
 # Input (flows,flowlen)
 function set_flows() {
