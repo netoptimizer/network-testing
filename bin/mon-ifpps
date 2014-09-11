@@ -1,0 +1,32 @@
+#!/bin/bash
+# Author: Jesper Dangaard Brouer <netoptimizer@brouer.com>
+# Version: 0.1.0
+#
+# Based on one-liner from:
+#  http://www.spinics.net/lists/netdev/msg293729.html
+#
+# Quick script that monitors a NICs PPS (Packets Per Sec) rate both TX
+# and RX, and also tries to assess the accuracy of the measurements.
+#
+# For a better/more statistically approach, consider running output
+# through Rusty Russell's tool: https://github.com/rustyrussell/stats
+#
+
+if [ -z "$1" ]; then
+   echo "Usage:"
+   echo "$0 device"
+   exit 1
+fi
+DEV=$1
+
+ifpps -clod $DEV -t 1000 | \
+ awk 'BEGIN{txsum=0; rxsum=0; n=0; txvar=0; txvar_min=0; txvar_max=0; rxvar=0;} \
+ /[[:digit:]]/ {txsum+=$11;rxsum+=$3;n++; \
+   txvar=0; if (txsum/n>10 && $11>0) { \
+     txvar=((1/(txsum/n)*10^9)-(1/$11*10^9)); \
+     if (n>10 && txvar < txvar_min) {txvar_min=txvar}; \
+     if (n>10 && txvar > txvar_max) {txvar_max=txvar}; \
+   }; \
+   rxvar=0; if (rxsum/n>10 && $3>0 ) { rxvar=((1/(rxsum/n)*10^9)-(1/$3*10^9))}; \
+   printf "instant rx:%u tx:%u pps n:%u average: rx:%d tx:%d pps (instant variation TX %.3f ns (min:%.3f max:%.3f) RX %.3f ns)\n", $3, $11, n, rxsum/n, txsum/n, txvar, txvar_min, txvar_max, rxvar; \
+   if (txvar > 2) {printf "WARNING instant variation high\n" } }'
