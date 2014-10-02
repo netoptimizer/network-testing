@@ -1,6 +1,13 @@
 #!/bin/bash
 #
-# Experimental script for playing with "skb_burst" optio
+# Script for playing with pktgen "burst" option (use -b $N)
+#  - This avoids writing the HW tailptr on every driver xmit
+#  - The performance boost is impressive, see commit link
+#    If correctly tuned, single CPU 10G wirespeed small pkts is possible
+#
+#  Avail since:
+#   commit 38b2cf2982dc73 ("net: pktgen: packet bursting via skb->xmit_more")
+#   https://git.kernel.org/cgit/linux/kernel/git/davem/net-next.git/commit/?id=38b2cf2982dc73
 #
 basedir=`dirname $0`
 source ${basedir}/functions.sh
@@ -33,7 +40,7 @@ for thread in `seq $min $max`; do
     base_config
 
     dev_set_dst_ip $dev $DEST_IP
-    dev_set_key_value $dev "skb_burst" $BURST
+    dev_set_key_value $dev "burst" $BURST
 done
 
 start_run
