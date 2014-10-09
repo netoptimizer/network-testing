@@ -3,6 +3,10 @@
 #  iptables SYNPROXY target usage example
 #  (support added in iptables v1.4.21)
 #
+#  WARNING: This script is for localhost INPUT
+#           REMEMBER to change INPUT to FORWARD
+#           if you are using this on a firewall
+#
 # Author: Jesper Dangaard Brouer <brouer@redhat.com>
 
 #export IPTABLES_CMD=
