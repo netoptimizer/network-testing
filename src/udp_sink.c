@@ -301,6 +301,7 @@ int main(int argc, char *argv[])
 	int sockfd, c;
 	int count  = 1000000;
 	int repeat = 2;
+	int so_reuseport = 0;
 
 	/* Default settings */
 	int addr_family = AF_INET; /* Default address family */
@@ -310,12 +311,13 @@ int main(int argc, char *argv[])
 	struct sockaddr_storage listen_addr; /* Can contain both sockaddr_in and sockaddr_in6 */
 
 	/* Parse commands line args */
-	while ((c = getopt(argc, argv, "c:r:l:64v:")) != -1) {
+	while ((c = getopt(argc, argv, "c:r:l:64sv:")) != -1) {
 		if (c == 'c') count       = atoi(optarg);
 		if (c == 'r') repeat      = atoi(optarg);
 		if (c == 'l') listen_port = atoi(optarg);
 		if (c == '4') addr_family = AF_INET;
 		if (c == '6') addr_family = AF_INET6;
+		if (c == 's') so_reuseport= 1;
 		if (c == 'v') verbose     = atoi(optarg);
 		if (c == '?') return usage(argv);
 	}
@@ -325,6 +327,11 @@ int main(int argc, char *argv[])
 
 	/* Socket setup stuff */
 	sockfd = Socket(addr_family, SOCK_DGRAM, IPPROTO_IP);
+
+	/* Enable use of SO_REUSEPORT for multi-process testing  */
+	if (so_reuseport)
+		Setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT,
+			   &so_reuseport, sizeof(so_reuseport));
 
 	/* Setup listen_addr depending on IPv4 or IPv6 address */
 	//setup_sockaddr(addr_family, &listen_addr, dest_ip, dest_port);
