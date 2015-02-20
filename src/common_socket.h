@@ -11,6 +11,10 @@
 #include <stdint.h> /* types uintXX_t */
 #include <netinet/in.h> /* sockaddr_in{,6} */
 
+#ifndef SO_REUSEPORT
+#define SO_REUSEPORT    15
+#endif
+
 /* Wrapper functions with error handling like "Stevens" */
 int Socket(int addr_family, int type, int protocol);
 int Connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
