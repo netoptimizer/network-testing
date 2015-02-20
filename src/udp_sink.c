@@ -329,9 +329,14 @@ int main(int argc, char *argv[])
 	sockfd = Socket(addr_family, SOCK_DGRAM, IPPROTO_IP);
 
 	/* Enable use of SO_REUSEPORT for multi-process testing  */
-	if (so_reuseport)
-		Setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT,
-			   &so_reuseport, sizeof(so_reuseport));
+	if (so_reuseport) {
+		if ((setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT,
+				&so_reuseport, sizeof(so_reuseport))) < 1) {
+			    printf("ERROR: No support for SO_REUSEPORT\n");
+			    perror("- setsockopt(SO_REUSEPORT)");
+			    exit(EXIT_FAIL_SOCKOPT);
+		    }
+	}
 
 	/* Setup listen_addr depending on IPv4 or IPv6 address */
 	//setup_sockaddr(addr_family, &listen_addr, dest_ip, dest_port);
