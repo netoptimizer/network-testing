@@ -331,11 +331,11 @@ int main(int argc, char *argv[])
 	/* Enable use of SO_REUSEPORT for multi-process testing  */
 	if (so_reuseport) {
 		if ((setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT,
-				&so_reuseport, sizeof(so_reuseport))) < 1) {
+				&so_reuseport, sizeof(so_reuseport))) < 0) {
 			    printf("ERROR: No support for SO_REUSEPORT\n");
 			    perror("- setsockopt(SO_REUSEPORT)");
 			    exit(EXIT_FAIL_SOCKOPT);
-		    }
+		}
 	}
 
 	/* Setup listen_addr depending on IPv4 or IPv6 address */
