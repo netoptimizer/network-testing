@@ -69,7 +69,7 @@ int recv_packet(int sockfd, const struct sockaddr_storage *dest_addr,
 	return len_recv;
 }
 
-int validate_packet(int len_send, int len_recv, char* buf_send, char* buf_recv)
+void validate_packet(int len_send, int len_recv, char* buf_send, char* buf_recv)
 {
 	/* Verify message */
 	if (len_recv != len_send) {
@@ -129,4 +129,5 @@ int main(int argc, char *argv[])
 	len_send = send_packet(sockfd, &dest_addr, buf_send, pkt_size);
 	len_recv = recv_packet(sockfd, &dest_addr, buf_recv, len_send);
 	validate_packet(len_send, len_recv, buf_send, buf_recv);
+	return 0;
 }

@@ -35,12 +35,6 @@
 #define DEBUG 1
 static volatile int verbose = 1;
 
-void error(char *msg)
-{
-	perror(msg);
-	exit(1);
-}
-
 #ifndef __USE_GNU
 /* IPv6 packet information - in cmsg_data[] */
 struct in6_pktinfo
@@ -70,7 +64,7 @@ int pktinfo_get(struct msghdr *my_hdr, struct in_pktinfo *pktinfo, struct in6_pk
 				memcpy(pktinfo6, get_pktinfo, sizeof(*pktinfo6));
 				res = AF_INET6;
 			} else if (DEBUG) {
-				fprintf(stderr, "Unknown ancillary data, len=%d, level=%d, type=%d\n",
+				fprintf(stderr, "Unknown ancillary data, len=%lu, level=%d, type=%d\n",
 					get_cmsg->cmsg_len, get_cmsg->cmsg_level, get_cmsg->cmsg_type);
 			}
 		}
@@ -78,7 +72,7 @@ int pktinfo_get(struct msghdr *my_hdr, struct in_pktinfo *pktinfo, struct in6_pk
 	return res;
 }
 
-int print_info(struct msghdr *my_hdr)
+void print_info(struct msghdr *my_hdr)
 {
 	struct in_pktinfo pktinfo;
 	struct in6_pktinfo pktinfo6;
