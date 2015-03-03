@@ -15,7 +15,7 @@ TARGETS = ${SRCS:.c=}
 LIBS=-lrt
 LIBS_PCAP=-lpcap
 
-CFLAGS := -O2
+CFLAGS := -O2 -Wall
 
 all: $(TARGETS)
 
