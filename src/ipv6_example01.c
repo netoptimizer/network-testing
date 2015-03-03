@@ -6,6 +6,8 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>  /* inet_pton(3) */
+#include <unistd.h>     /* write(3) */
 #include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,7 +23,8 @@ void error(char *msg)
 
 int main(int argc, char *argv[])
 {
-	int sock, length, fromlen, n;
+	int sock, length, n;
+	socklen_t fromlen;
 	struct sockaddr_in6 server;
 	struct sockaddr_in6  from;
 
@@ -29,7 +32,7 @@ int main(int argc, char *argv[])
 	char buf[1024];
 	char ipv6[INET6_ADDRSTRLEN]; /* see man inet_ntop(3) */
 
-	printf("Simple IPv6 UDP example\n");
+	printf("Simple IPv6 UDP example (LISTEN'ing on UDP port %d)\n", portNr);
 
 	length = sizeof (struct sockaddr_in6);
 
@@ -46,6 +49,7 @@ int main(int argc, char *argv[])
 
 	if (bind(sock,(struct sockaddr *)&server,length)<0)
 		error("binding");
+
 	fromlen = sizeof(struct sockaddr_in6);
 	while (1) {
 		printf("- Waiting on recvfrom()\n");
