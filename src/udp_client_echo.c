@@ -48,8 +48,8 @@ int send_packet(int sockfd, const struct sockaddr_storage *dest_addr,
 int recv_packet(int sockfd, const struct sockaddr_storage *dest_addr,
 		char *buf_recv, uint16_t pkt_size)
 {
-	/* Notes: dest_addr will be used for validating against from_addr */
-	socklen_t len_addr = sockaddr_len(dest_addr);
+	/* TODO: use dest_addr for validating against from_addr */
+	// socklen_t len_addr = sockaddr_len(dest_addr);
 	// struct sockaddr *from_addr;
 
 	int len_recv;

@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <stdlib.h>    /* atoi(3) */
 
 #include "common_socket.h"
 
@@ -42,7 +43,7 @@ int pktinfo_get(struct msghdr *my_hdr, struct in_pktinfo *pktinfo)
 				memcpy(pktinfo, get_pktinfo, sizeof(*pktinfo));
 				res = 0;
 			} else if (DEBUG) {
-				fprintf(stderr, "Unknown ancillary data, len=%d, level=%d, type=%d\n",
+				fprintf(stderr, "Unknown ancillary data, len=%lu, level=%d, type=%d\n",
 				       get_cmsg->cmsg_len, get_cmsg->cmsg_level, get_cmsg->cmsg_type);
 			}
 		}

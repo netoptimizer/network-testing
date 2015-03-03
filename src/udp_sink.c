@@ -366,4 +366,5 @@ int main(int argc, char *argv[])
 	time_function(sockfd, count, repeat, 0, sink_with_recvfrom);
 
 	close(sockfd);
+	return 0;
 }
