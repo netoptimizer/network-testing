@@ -107,7 +107,8 @@ int main(int argc, char *argv[])
 	}
 	dest_ip = argv[optind];
 	if (verbose > 0)
-		printf("Destination IP:%s port:%d\n", dest_ip, dest_port);
+		printf("Destination IP%s: %s port:%d\n",
+		       (addr_family == AF_INET6) ? "v6": "", dest_ip, dest_port);
 
 	sockfd = Socket(addr_family, SOCK_DGRAM, 0);
 
@@ -115,7 +116,9 @@ int main(int argc, char *argv[])
 	//int set_pmtu_disc = IP_PMTUDISC_DO; /* do PMTU = Don't Fragment */
 	int set_pmtu_disc = IP_PMTUDISC_DONT; /* Allow fragments, dont do PMTU */
 	Setsockopt(sockfd, IPPROTO_IP,   IP_MTU_DISCOVER,   &set_pmtu_disc, sizeof(int));
-	Setsockopt(sockfd, IPPROTO_IPV6, IPV6_MTU_DISCOVER, &set_pmtu_disc, sizeof(int));
+	if (addr_family == AF_INET6)
+		Setsockopt(sockfd, IPPROTO_IPV6, IPV6_MTU_DISCOVER,
+			   &set_pmtu_disc, sizeof(int));
 
 	/* Setup dest_addr depending on IPv4 or IPv6 address */
 	setup_sockaddr(addr_family, &dest_addr, dest_ip, dest_port);

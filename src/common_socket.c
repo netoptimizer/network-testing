@@ -48,7 +48,8 @@ void setup_sockaddr(int addr_family, struct sockaddr_storage *addr,
 	}
 	if (res <= 0) {
 		if (res == 0)
-			fprintf(stderr,	"ERROR: IP \"%s\" not in presentation format\n", ip_string);
+			fprintf(stderr,	"ERROR: IP%s \"%s\" not in presentation format\n",
+				(addr_family == AF_INET6) ? "v6" : "v4", ip_string);
 		else
 			perror("inet_pton");
 		exit(EXIT_FAIL_IP);
