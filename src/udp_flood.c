@@ -31,7 +31,7 @@
 
 static int usage(char *argv[])
 {
-	printf("-= ERROR: Parameter problems =-\n", argv[0]);
+	printf("-= ERROR: Parameter problems =-\n");
 	printf(" Usage: %s [-c count] [-p port] [-m payloadsize] [-4] [-6] [-v] IPADDR\n\n",
 	       argv[0]);
 	return EXIT_FAIL_OPTION;
@@ -103,8 +103,6 @@ static int flood_with_sendmsg(int sockfd, struct sockaddr_storage *dest_addr,
 	char          *msg_buf;  /* payload data */
 	struct msghdr *msg_hdr;  /* struct for setting up transmit */
 	struct iovec  *msg_iov;  /* io-vector: array of pointers to payload data */
-	unsigned int  msg_hdr_sz;
-	unsigned int  msg_iov_sz;
 	unsigned int  iov_array_elems = 1; /*adjust to test scattered payload */
 	int i;
 
@@ -176,8 +174,6 @@ static int flood_with_sendMmsg(int sockfd, struct sockaddr_storage *dest_addr,
 {
 	char          *msg_buf;  /* payload data */
 	struct iovec  *msg_iov;  /* io-vector: array of pointers to payload data */
-	unsigned int  msg_hdr_sz;
-	unsigned int  msg_iov_sz;
 	unsigned int  iov_array_elems = 1; /*adjust to test scattered payload */
 	unsigned int  batch = 32;
 	int i;
@@ -278,8 +274,8 @@ static void time_function(int sockfd, struct sockaddr_storage *dest_addr,
 	tsc_cycles = tsc_interval / cnt_send;
 	ns_per_pkt = ((double)time_interval / cnt_send);
 	timesec    = ((double)time_interval / NANOSEC_PER_SEC);
-	printf(" - Per packet: %llu cycles(tsc) %.2f ns, %.2f pps (time:%.2f sec)\n"
-	       "   (packet count:%d tsc_interval:%llu)\n",
+	printf(" - Per packet: %d cycles(tsc) %.2f ns, %.2f pps (time:%.2f sec)\n"
+	       "   (packet count:%d tsc_interval:%lu)\n",
 	       tsc_cycles, ns_per_pkt, pps, timesec,
 	       cnt_send, tsc_interval);
 }
@@ -287,10 +283,6 @@ static void time_function(int sockfd, struct sockaddr_storage *dest_addr,
 int main(int argc, char *argv[])
 {
 	int sockfd, c;
-	uint64_t tsc_begin, tsc_end, tsc_interval;
-	int cnt_send;
-	double pps;
-	int nanosecs;
 
 	/* Default settings */
 	int addr_family = AF_INET; /* Default address family */
@@ -342,4 +334,5 @@ int main(int argc, char *argv[])
 	time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendMmsg);
 
 	close(sockfd);
+	return 0;
 }

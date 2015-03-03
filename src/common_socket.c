@@ -11,6 +11,8 @@
 #include <sys/types.h>  /* POSIX.1-2001 does not require the inclusion */
 #include <sys/uio.h>    /* struct iovec */
 #include <netinet/in.h> /* sockaddr_in{,6} */
+#include <arpa/inet.h>  /* inet_pton(3) */
+#include <unistd.h>     /* close(3) */
 #include <stdio.h>      /* perror(3) and fprintf(3) */
 #include <stdlib.h>     /* exit(3) */
 #include <errno.h>
