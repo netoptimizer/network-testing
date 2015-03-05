@@ -72,7 +72,7 @@ int pf_tx_socket(int ver)
 
 int main(int argc, char **argv)
 {
-	printf("Lame RAW/PF_PACKET socket TX test program\n");
+	printf("Lame test program for setting QDISC_BYPASS on RAW socket\n");
 
 	int sock = pf_tx_socket(0);
 
