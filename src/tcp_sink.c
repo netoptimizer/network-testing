@@ -38,7 +38,7 @@
 static int usage(char *argv[])
 {
 	printf("-= ERROR: Parameter problems =-\n");
-	printf(" Usage: %s [-c count] [-l listen_port] [-4] [-6] [-v]\n\n",
+	printf(" Usage: %s [-c count] [-l listen_port] [-4] [-6] [-v] [-s] [-w]\n\n",
 	       argv[0]);
 	return EXIT_FAIL_OPTION;
 }
@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
 	int c, i;
 	int count  = 1000000;
 	int so_reuseport = 0;
-	int echo_something = 0;
+	int write_something = 0;
 	pid_t pid = getpid();
 
 	/* Default settings */
@@ -68,13 +68,13 @@ int main(int argc, char *argv[])
 	memset(send_buf, 0, sizeof(send_buf));
 
 	/* Parse commands line args */
-	while ((c = getopt(argc, argv, "c:l:64sev:")) != -1) {
+	while ((c = getopt(argc, argv, "c:l:64swv:")) != -1) {
 		if (c == 'c') count       = atoi(optarg);
 		if (c == 'l') listen_port = atoi(optarg);
 		if (c == '4') addr_family = AF_INET;
 		if (c == '6') addr_family = AF_INET6;
 		if (c == 's') so_reuseport= 1;
-		if (c == 'e') echo_something = 1;
+		if (c == 'w') write_something = 1;
 		if (c == 'v') verbose     = atoi(optarg);
 		if (c == '?') return usage(argv);
 	}
@@ -129,7 +129,8 @@ int main(int argc, char *argv[])
 		 */
 		connfd = accept(listenfd, (struct sockaddr*)NULL, NULL);
 
-		if (echo_something) {
+		if (write_something) {
+			/* Send/write something back into the TCP stream */
 			ticks = time(NULL);
 			snprintf(send_buf, sizeof(send_buf),
 				 "PID:[%5d] cnt:%d %.24s\r\n",
