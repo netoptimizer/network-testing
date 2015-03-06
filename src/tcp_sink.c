@@ -117,7 +117,7 @@ int main(int argc, char *argv[])
 	/* Notice "backlog" limited by: /proc/sys/net/core/somaxconn */
 	listen(listenfd, 1024);
 
-	for (i=0; i < count; i++) {
+	for (i=1; i <= count; i++) {
 
 		/* In the call to accept(), the server is put to sleep
 		 * and when for an incoming client request, the three
