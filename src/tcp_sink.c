@@ -60,7 +60,7 @@ static int usage(char *argv[])
 int main(int argc, char *argv[])
 {
 	int listenfd, connfd;
-	int optind = 0;
+	int longindex = 0;
 	int c, i;
 	int count  = 1000000;
 	int write_something = 0;
@@ -82,11 +82,11 @@ int main(int argc, char *argv[])
 
 	/* Parse commands line args */
 	while ((c = getopt_long(argc, argv, "c:l:64swv:",
-			long_options, &optind)) != -1) {
+			long_options, &longindex)) != -1) {
 		if (c == 0) { /* optional handling "flag" options */
 			if (verbose) {
 				printf("Flag option %s",
-				       long_options[optind].name);
+				       long_options[longindex].name);
 				if (optarg) printf(" with arg %s", optarg);
 				printf("\n");
 			}
