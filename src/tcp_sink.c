@@ -35,12 +35,16 @@
 #include "common.h"
 #include "common_socket.h"
 
+static int so_reuseport = 1;
+
 static struct option long_options[] = {
 	{"ipv4",	no_argument,		NULL, '4' },
 	{"ipv6",	no_argument,		NULL, '6' },
 	{"listen-port",	required_argument,	NULL, 'l' },
 	{"verbose",	optional_argument,	NULL, 'v' },
-	{"reuseport",	no_argument,		NULL, 's' },
+	{"quiet",	no_argument,		&verbose, 0 },
+	{"reuseport",	no_argument,		&so_reuseport, 1 },
+	{"no-reuseport",no_argument,		&so_reuseport, 0 },
 	{"write-back", 	no_argument,		NULL, 'w' },
 	{0, 0, NULL,  0 }
 };
@@ -56,10 +60,9 @@ static int usage(char *argv[])
 int main(int argc, char *argv[])
 {
 	int listenfd, connfd;
-	int option_index = 0;
+	int optind = 0;
 	int c, i;
 	int count  = 1000000;
-	int so_reuseport = 0;
 	int write_something = 0;
 	pid_t pid = getpid();
 
@@ -80,12 +83,19 @@ int main(int argc, char *argv[])
 
 	/* Parse commands line args */
 	while ((c = getopt_long(argc, argv, "c:l:64swv:",
-			long_options, &option_index)) != -1) {
+			long_options, &optind)) != -1) {
+		if (c == 0) { /* optional handling "flag" options */
+			if (verbose) {
+				printf("Flag option %s",
+				       long_options[optind].name);
+				if (optarg) printf(" with arg %s", optarg);
+				printf("\n");
+			}
+		}
 		if (c == 'c') count       = atoi(optarg);
 		if (c == 'l') listen_port = atoi(optarg);
 		if (c == '4') addr_family = AF_INET;
 		if (c == '6') addr_family = AF_INET6;
-		if (c == 's') so_reuseport= 1;
 		if (c == 'w') write_something = 1;
 		if (c == 'v') (optarg) ? verbose = atoi(optarg) : (verbose = 1);
 		if (c == '?') return usage(argv);
