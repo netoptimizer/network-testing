@@ -29,7 +29,6 @@
 #include <getopt.h>
 
 #include <linux/unistd.h>
-#include <time.h>
 
 #include "global.h"
 #include "common.h"
@@ -71,7 +70,6 @@ int main(int argc, char *argv[])
 	uint16_t listen_port = 6666;
 
 	char send_buf[1024];
-	time_t ticks;
 
 	/* Support for both IPv4 and IPv6.
 	 *  sockaddr_storage: Can contain both sockaddr_in and sockaddr_in6
@@ -153,10 +151,8 @@ int main(int argc, char *argv[])
 
 		if (write_something) {
 			/* Send/write something back into the TCP stream */
-			ticks = time(NULL);
 			snprintf(send_buf, sizeof(send_buf),
-				 "PID:[%5d] cnt:%d %.24s\r\n",
-				 pid, i, ctime(&ticks));
+				 "PID:[%5d] cnt:%d\r\n", pid, i);
 			write(connfd, send_buf, strlen(send_buf));
 		}
 
