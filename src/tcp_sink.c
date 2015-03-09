@@ -40,6 +40,7 @@ static struct option long_options[] = {
 	{"ipv4",	no_argument,		NULL, '4' },
 	{"ipv6",	no_argument,		NULL, '6' },
 	{"listen-port",	required_argument,	NULL, 'l' },
+	{"count",	required_argument,	NULL, 'c' },
 	{"verbose",	optional_argument,	NULL, 'v' },
 	{"quiet",	no_argument,		&verbose, 0 },
 	{"reuseport",	no_argument,		&so_reuseport, 1 },
