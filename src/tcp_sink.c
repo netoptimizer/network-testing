@@ -35,6 +35,16 @@
 #include "common.h"
 #include "common_socket.h"
 
+static struct option long_options[] = {
+	{"ipv4",	no_argument,		NULL, '4' },
+	{"ipv6",	no_argument,		NULL, '6' },
+	{"listen-port",	required_argument,	NULL, 'l' },
+	{"verbose",	optional_argument,	NULL, 'v' },
+	{"reuseport",	no_argument,		NULL, 's' },
+	{"write-back", 	no_argument,		NULL, 'w' },
+	{0, 0, NULL,  0 }
+};
+
 static int usage(char *argv[])
 {
 	printf("-= ERROR: Parameter problems =-\n");
@@ -46,6 +56,7 @@ static int usage(char *argv[])
 int main(int argc, char *argv[])
 {
 	int listenfd, connfd;
+	int option_index = 0;
 	int c, i;
 	int count  = 1000000;
 	int so_reuseport = 0;
@@ -68,14 +79,15 @@ int main(int argc, char *argv[])
 	memset(send_buf, 0, sizeof(send_buf));
 
 	/* Parse commands line args */
-	while ((c = getopt(argc, argv, "c:l:64swv:")) != -1) {
+	while ((c = getopt_long(argc, argv, "c:l:64swv:",
+			long_options, &option_index)) != -1) {
 		if (c == 'c') count       = atoi(optarg);
 		if (c == 'l') listen_port = atoi(optarg);
 		if (c == '4') addr_family = AF_INET;
 		if (c == '6') addr_family = AF_INET6;
 		if (c == 's') so_reuseport= 1;
 		if (c == 'w') write_something = 1;
-		if (c == 'v') verbose     = atoi(optarg);
+		if (c == 'v') (optarg) ? verbose = atoi(optarg) : (verbose = 1);
 		if (c == '?') return usage(argv);
 	}
 
