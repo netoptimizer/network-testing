@@ -34,7 +34,9 @@
 #include "common.h"
 #include "common_socket.h"
 
+/* Global config setting, default values adjustable via getopt_long */
 static int so_reuseport = 1;
+static int write_something = 0;
 
 static struct option long_options[] = {
 	{"ipv4",	no_argument,		NULL, '4' },
@@ -45,15 +47,30 @@ static struct option long_options[] = {
 	{"quiet",	no_argument,		&verbose, 0 },
 	{"reuseport",	no_argument,		&so_reuseport, 1 },
 	{"no-reuseport",no_argument,		&so_reuseport, 0 },
-	{"write-back", 	no_argument,		NULL, 'w' },
+	{"write-back", 	no_argument,		&write_something, 1 },
 	{0, 0, NULL,  0 }
 };
 
 static int usage(char *argv[])
 {
+	int i;
+
 	printf("-= ERROR: Parameter problems =-\n");
-	printf(" Usage: %s [-c count] [-l listen_port] [-4] [-6] [-v] [-s] [-w]\n\n",
+	printf(" Usage: %s (options-see-below)\n",
 	       argv[0]);
+	printf(" Listing options:\n");
+	for (i = 0; long_options[i].name != 0; i++) {
+		printf(" --%s", long_options[i].name);
+		if (long_options[i].flag != NULL)
+			printf("\t\t flag (internal value:%d)",
+			       *long_options[i].flag);
+		else
+			printf("\t\t short-option: -%c",
+			       long_options[i].val);
+		printf("\n");
+	}
+	printf("\n");
+
 	return EXIT_FAIL_OPTION;
 }
 
@@ -63,7 +80,6 @@ int main(int argc, char *argv[])
 	int longindex = 0;
 	int c, i;
 	int count  = 1000000;
-	int write_something = 0;
 	pid_t pid = getpid();
 
 	/* Default settings */
