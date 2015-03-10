@@ -108,6 +108,19 @@ int Connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 	return res;
 }
 
+int Close(int sockfd)
+{
+	int res = close(sockfd);
+
+	if (res < 0) {
+		fprintf(stderr, "ERROR: %s() failed (%d) errno(%d) ",
+			__func__, res, errno);
+		perror("- close");
+		exit(EXIT_FAIL_SOCK);
+	}
+	return res;
+}
+
 int Setsockopt (int fd, int level, int optname, const void *optval,
 		socklen_t optlen)
 {
