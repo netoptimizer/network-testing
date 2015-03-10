@@ -22,12 +22,18 @@
 #include "common.h"
 #include "common_socket.h"
 
+/* Whether to close connections immediately.  Not setting this can be
+ * used for stressing TCP to keep state longer.
+ */
+static int close_conn = 1;
+
 static struct option long_options[] = {
 	{"ipv4",	no_argument,		NULL, '4' },
 	{"ipv6",	no_argument,		NULL, '6' },
 	{"port",	required_argument,	NULL, 'p' },
 	{"verbose",	optional_argument,	NULL, 'v' },
 	{"quiet",	no_argument,		&verbose, 0 },
+	{"no-close",	no_argument,		&close_conn, 0 },
 	{0, 0, NULL,  0 }
 };
 
@@ -96,7 +102,8 @@ int main(int argc, char *argv[])
 		Connect(sockfd, (struct sockaddr *)&dest_addr,
 			sockaddr_len(&dest_addr));
 
-		close(sockfd);
+		if (close_conn)
+			Close(sockfd);
 	}
 
 	return 0;
