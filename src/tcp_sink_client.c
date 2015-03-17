@@ -17,6 +17,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 
 #include "global.h"
 #include "common.h"
@@ -31,6 +32,8 @@ static struct option long_options[] = {
 	{"ipv4",	no_argument,		NULL, '4' },
 	{"ipv6",	no_argument,		NULL, '6' },
 	{"port",	required_argument,	NULL, 'p' },
+	{"sport",	required_argument,	NULL, 's' },
+	{"source-port",	required_argument,	NULL, 's' },
 	{"verbose",	optional_argument,	NULL, 'v' },
 	{"quiet",	no_argument,		&verbose, 0 },
 	{"no-close",	no_argument,		&close_conn, 0 },
@@ -45,6 +48,73 @@ static int usage(char *argv[])
 	return EXIT_FAIL_OPTION;
 }
 
+/* Force using a specific source port number for connection */
+static void bind_source_port(int addr_family, int sockfd, uint16_t src_port)
+{
+	struct sockaddr_storage sock_addr;
+	int val = 1;
+
+	memset(&sock_addr, 0, sizeof(sock_addr));
+
+	if (addr_family == AF_INET) {
+		struct sockaddr_in *addr4 = (struct sockaddr_in *)&sock_addr;
+		addr4->sin_family      = addr_family;
+		addr4->sin_port        = htons(src_port);
+		addr4->sin_addr.s_addr = htonl(INADDR_ANY);
+	} else if (addr_family == AF_INET6) {
+		struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *)&sock_addr;
+		addr6->sin6_family = addr_family;
+		addr6->sin6_port   = htons(src_port);
+	}
+
+	/* If several conn, allow to re-bind to same addr */
+	Setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
+	//Setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT, &val, sizeof(val));
+
+	Bind(sockfd, &sock_addr);
+}
+
+int connect_retries(int sockfd, struct sockaddr_storage *dest_addr,
+		    int max_retries)
+{
+	int res, retries = 0;
+
+retry:
+	res = connect(sockfd, (struct sockaddr *)dest_addr,
+			      sockaddr_len(dest_addr));
+	if (res >= 0)
+		return res;
+
+	if (++retries > max_retries) {
+		fprintf(stderr, "ERROR: exceed conn attempts (%d) errno(%d) ",
+			retries, errno);
+		perror("- connect");
+		close(sockfd);
+		exit(EXIT_FAIL_SOCK);
+	}
+
+	/* Error handling, knowing res == -1 */
+	switch (errno) {
+	case EADDRNOTAVAIL: /* 99 */
+		/* Can happen due to fast re-bind re-connect cycle */
+		fprintf(stderr, "RETRY(%d): re-connect() errno(%d) ",
+			retries, errno);
+		perror("- connect");
+		goto retry;
+		break;
+	case ECONNRESET: /* 104 */
+		/* Usually happens due to SO_REUSEPORT listen errors */
+		/* fall-through to die */
+	default:
+		fprintf(stderr, "ERROR: connect() failed errno(%d) ", errno);
+		perror("- connect");
+		close(sockfd);
+		exit(EXIT_FAIL_SOCK);
+	}
+
+	return res;
+}
+
 int main(int argc, char *argv[])
 {
 	int sockfd;
@@ -54,6 +124,7 @@ int main(int argc, char *argv[])
 	/* Default settings */
 	int addr_family = AF_INET; /* Default address family */
 	uint16_t dest_port = 6666;
+	uint16_t src_port = 0; /* Allow to "force" source port */
 	int count = 100;
 
 	/* Support for both IPv4 and IPv6.
@@ -63,7 +134,7 @@ int main(int argc, char *argv[])
 	memset(&dest_addr, 0, sizeof(dest_addr));
 
 	/* Parse commands line args */
-	while ((c = getopt_long(argc, argv, "c:p:64v:",
+	while ((c = getopt_long(argc, argv, "c:p:s:64v:",
 			long_options, &longindex)) != -1) {
 		if (c == 0) { /* optional handling "flag" options */
 			if (verbose) {
@@ -75,6 +146,7 @@ int main(int argc, char *argv[])
 		}
 		if (c == 'c') count       = atoi(optarg);
 		if (c == 'p') dest_port   = atoi(optarg);
+		if (c == 's') src_port    = atoi(optarg);
 		if (c == '4') addr_family = AF_INET;
 		if (c == '6') addr_family = AF_INET6;
 		if (c == 'v') (optarg) ? verbose = atoi(optarg) : (verbose = 1);
@@ -97,10 +169,12 @@ int main(int argc, char *argv[])
 	for (i = 0; i < count; i++) {
 		if (verbose)
 			printf("count:%d\n", i);
-		sockfd = Socket(addr_family, SOCK_STREAM, IPPROTO_IP);
+		sockfd = Socket(addr_family, SOCK_STREAM, IPPROTO_TCP);
 
-		Connect(sockfd, (struct sockaddr *)&dest_addr,
-			sockaddr_len(&dest_addr));
+		if (src_port > 0)
+			bind_source_port(addr_family, sockfd, src_port);
+
+		connect_retries(sockfd, &dest_addr, 2);
 
 		if (close_conn)
 			Close(sockfd);
