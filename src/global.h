@@ -11,6 +11,7 @@
 #define EXIT_FAIL_IP		102
 #define EXIT_FAIL_SEND		103
 #define EXIT_FAIL_RECV		104
+#define EXIT_FAIL_REUSEPORT    	105
 
 #define NANOSEC_PER_SEC 1000000000 /* 10^9 */
 

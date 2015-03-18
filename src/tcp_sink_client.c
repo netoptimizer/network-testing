@@ -103,8 +103,15 @@ retry:
 		goto retry;
 		break;
 	case ECONNRESET: /* 104 */
-		/* Usually happens due to SO_REUSEPORT listen errors */
-		/* fall-through to die */
+		/* Usually happens due to SO_REUSEPORT listen errors,
+		 * or conn reset during 3WHS.
+		 */
+		fprintf(stderr, "ERROR: Likely SO_REUSEPORT failed errno(%d) ",
+			errno);
+		perror("- connect");
+		close(sockfd);
+		exit(EXIT_FAIL_REUSEPORT);
+		break;
 	default:
 		fprintf(stderr, "ERROR: connect() failed errno(%d) ", errno);
 		perror("- connect");
