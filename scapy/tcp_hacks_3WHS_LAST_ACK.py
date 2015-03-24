@@ -33,11 +33,13 @@ Usage:
     -d dest   IP address
     -p dest   port
     -q source port
+    -r sends a reset (after a delay)
 
 """
 
 import getopt
 import sys
+import time
 
 from scapy.all import *
 
@@ -47,6 +49,7 @@ dstip = None
 dstport = 6666
 srcport = 1337
 init_seq = 100
+send_reset = False
 
 def fake_tcp_3WHS(srcip, dstip, src_port, dst_port, init_seq):
 
@@ -87,6 +90,14 @@ def send_fin(srcip, dstip, src_port, dst_port, seq, ack):
     #   retrans (Linux, 8 times) these FIN-ACKs until it closes the
     #   socket
 
+def send_rst(srcip, dstip, src_port, dst_port, seq):
+    # The RST (if correct seq) will bring the server side out of LAST-ACK
+    # and into a closed state
+    ip=IP(src=srcip, dst=dstip)
+    TCP_RST=TCP(sport=src_port, dport=dst_port, flags="R", seq=seq, ack=0)
+    send(ip/TCP_RST)
+
+
 if __name__ == "__main__":
     def usage(msg=None):
         if msg: sys.stderr.write('%s: %s\n' % (sys.argv[0], msg))
@@ -94,13 +105,14 @@ if __name__ == "__main__":
         sys.exit(1)
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], 'hs:d:p:q:')
+        opts, args = getopt.getopt(sys.argv[1:], 'hrs:d:p:q:')
         for o, a in opts:
             if o == '-h': usage()
             elif o == '-s': srcip = a
             elif o == '-d': dstip = a
             elif o == '-p': dstport = int(a)
             elif o == '-q': srcport = int(a)
+            elif o == '-r': send_reset = True
             else: raise Warning, 'EDOOFUS - Programming error'
     except getopt.GetoptError, e:
         usage(e)
@@ -113,3 +125,10 @@ if __name__ == "__main__":
     my_seq = init_seq + 1
     my_seq = send_data(srcip, dstip, srcport, dstport, my_seq, track_ack)
     send_fin(srcip, dstip, srcport, dstport, my_seq, track_ack)
+
+    if send_reset:
+        delay=10
+        print "Delay", delay, "sec, before sending TCP RST"
+        time.sleep(delay)
+        my_seq = my_seq + 1
+        send_rst(srcip, dstip, srcport, dstport, my_seq)
