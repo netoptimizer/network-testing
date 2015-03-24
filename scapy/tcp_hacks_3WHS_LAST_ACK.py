@@ -35,6 +35,9 @@ Usage:
     -q source port
     -r sends a reset (after a delay)
 
+    -f fail-scenario
+      (one SYN reuse conn, that gets dropped, but pickup by conntrack)
+
 """
 
 import getopt
@@ -50,6 +53,7 @@ dstport = 6666
 srcport = 1337
 init_seq = 100
 send_reset = False
+fail_scenarie = False
 
 def fake_tcp_3WHS(srcip, dstip, src_port, dst_port, init_seq):
 
@@ -97,6 +101,12 @@ def send_rst(srcip, dstip, src_port, dst_port, seq):
     TCP_RST=TCP(sport=src_port, dport=dst_port, flags="R", seq=seq, ack=0)
     send(ip/TCP_RST)
 
+def fake_tcp_syn(srcip, dstip, src_port, dst_port, init_seq):
+    ip=IP(src=srcip, dst=dstip)
+    TCP_SYN2=TCP(sport=src_port, dport=dst_port, flags="S", seq=init_seq)
+    # Send TCP SYN packet (ignoring reply)
+    send(ip/TCP_SYN2)
+
 
 if __name__ == "__main__":
     def usage(msg=None):
@@ -105,7 +115,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], 'hrs:d:p:q:')
+        opts, args = getopt.getopt(sys.argv[1:], 'hrfs:d:p:q:')
         for o, a in opts:
             if o == '-h': usage()
             elif o == '-s': srcip = a
@@ -113,6 +123,7 @@ if __name__ == "__main__":
             elif o == '-p': dstport = int(a)
             elif o == '-q': srcport = int(a)
             elif o == '-r': send_reset = True
+            elif o == '-f': fail_scenarie = True
             else: raise Warning, 'EDOOFUS - Programming error'
     except getopt.GetoptError, e:
         usage(e)
@@ -125,6 +136,18 @@ if __name__ == "__main__":
     my_seq = init_seq + 1
     my_seq = send_data(srcip, dstip, srcport, dstport, my_seq, track_ack)
     send_fin(srcip, dstip, srcport, dstport, my_seq, track_ack)
+
+    # This sends a (fake) SYN reuse conn attempt
+    # - If conntrack is enabled it will transition into wrong state
+    #   E.g. with a REDIRECT rule like:
+    #    iptables -t nat -A PREROUTING -p tcp -m tcp --dport 6666 \
+    #      -j REDIRECT --to-ports 6000
+    if fail_scenarie:
+        # Strange delay 3 here, does not cause issue?!?
+        delay=2
+        print "Delay", delay, "sec, before sending TCP fake SYN reuse conn"
+        time.sleep(delay)
+        fake_tcp_syn(srcip, dstip, srcport, dstport, 65535)
 
     if send_reset:
         delay=10
