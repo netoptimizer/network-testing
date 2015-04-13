@@ -11,6 +11,14 @@ Usage:
     -d destination IPv6 address
     -p destination port
 
+UPDATE: This fragmentation might be done smarter.
+
+ After writing this script I found scapy have a functions for normal
+ (e.g. none overlapping) fragmentation, see functions: fragment() and
+ fragment6().
+ Example see:
+  http://www.packetstan.com/2011/04/crafting-overlapping-fragments.html
+
 """
 
 import getopt
