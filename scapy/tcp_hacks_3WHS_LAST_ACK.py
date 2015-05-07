@@ -3,6 +3,7 @@
 
  TCP hacks for network testing
   - Cause servers socket to enter LAST-ACK state
+  - Reproducer for conntrack bug regarding RFC5961 challenge ACK
 
 Pre-setup:
 
@@ -106,6 +107,8 @@ def fake_tcp_syn(srcip, dstip, src_port, dst_port, init_seq):
     TCP_SYN2=TCP(sport=src_port, dport=dst_port, flags="S", seq=init_seq)
     # Send TCP SYN packet (ignoring reply)
     send(ip/TCP_SYN2)
+    # If RFC5961 is implemented a challenge-ACK would be send back
+    # containing the seq need to RST the connection, but we don't need it.
 
 
 if __name__ == "__main__":
@@ -135,18 +138,31 @@ if __name__ == "__main__":
 
     my_seq = init_seq + 1
     my_seq = send_data(srcip, dstip, srcport, dstport, my_seq, track_ack)
+    # Start "active" close with first FIN
     send_fin(srcip, dstip, srcport, dstport, my_seq, track_ack)
 
-    # This sends a (fake) SYN reuse conn attempt
+    # This sends two (fake) SYN reuse conn attempt
+    #
     # - If conntrack is enabled it will transition into wrong state
-    #   E.g. with a REDIRECT rule like:
-    #    iptables -t nat -A PREROUTING -p tcp -m tcp --dport 6666 \
-    #      -j REDIRECT --to-ports 6000
+    #   due to TCP stack responding with an ACK to the "spurious" SYN,
+    #   as required by RFC5961, but conntrack wrongly sees it as a ACK
+    #   to the LAST-ACK state.  Conntrack (wrongly) transition into
+    #   "TIME-WAIT" (while socket remains in "LAST-ACK").
+    #
+    # - On second "spurious" SYN, conntrack (wrongly) will transition
+    #   from "TIME-WAIT" into "SYN_SENT" (believing this is a reopened
+    #   conn), while the socket is still in "LAST-ACK".
+    #
     if fail_scenarie:
-        # Strange delay 3 here, does not cause issue?!?
-        delay=2
-        print "Delay", delay, "sec, before sending TCP fake SYN reuse conn"
-        time.sleep(delay)
+        delay1=2
+        print "Delay", delay1, "sec, before sending TCP fake SYN reuse conn"
+        print "(If bug present, conntrack will go-into TIME_WAIT)"
+        time.sleep(delay1)
+        fake_tcp_syn(srcip, dstip, srcport, dstport, 65535)
+        delay2=3
+        print "Delay", delay2, "sec, before sending yet-another  TCP fake SYN"
+        print "(If bug present, conntrack will go-into SYN_SENT)"
+        time.sleep(delay2)
         fake_tcp_syn(srcip, dstip, srcport, dstport, 65535)
 
     if send_reset:
