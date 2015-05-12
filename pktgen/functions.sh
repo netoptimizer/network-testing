@@ -26,12 +26,38 @@ function info() {
     fi
 }
 
-## -- Generic proc commands -- ##
+## -- Pktgen proc config commands -- ##
 export PROC_DIR=/proc/net/pktgen
+#
+# Three different shell functions for configuring the different
+# components of pktgen:
+#   pg_ctrl(), pg_thread() and pg_set().
+#
+# These functions correspond to pktgens different components.
+# * pg_ctrl()   control "pgctrl" (/proc/net/pktgen/pgctrl)
+# * pg_thread() control the kernel threads and binding to devices
+# * pg_set()    control setup of individual devices
+function pg_ctrl() {
+    local proc_file="pgctrl"
+    proc_cmd ${proc_file} "$@"
+}
+
+function pg_thread() {
+    local thread=$1
+    local proc_file="kpktgend_${thread}"
+    shift
+    proc_cmd ${proc_file} "$@"
+}
+
+function pg_set() {
+    local dev=$1
+    local proc_file="$dev"
+    shift
+    proc_cmd ${proc_file} "$@"
+}
 
 # More generic replacement for pgset(), that does not depend on global
 # variable for proc file.
-#
 function proc_cmd() {
     local result
     local proc_file=$1
@@ -60,25 +86,6 @@ function proc_cmd() {
     if [ $status -ne 0 ]; then
 	err 5 "Write error($status) occured cmd: \"$@ > $proc_ctrl\""
     fi
-}
-
-function pg_ctrl() {
-    local proc_file="pgctrl"
-    proc_cmd ${proc_file} "$@"
-}
-
-function pg_thread() {
-    local thread=$1
-    local proc_file="kpktgend_${thread}"
-    shift
-    proc_cmd ${proc_file} "$@"
-}
-
-function pg_set() {
-    local dev=$1
-    local proc_file="$dev"
-    shift
-    proc_cmd ${proc_file} "$@"
 }
 
 # Old obsolete "pgset" function, with slightly improved err handling
