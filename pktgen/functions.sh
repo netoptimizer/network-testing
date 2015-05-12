@@ -97,15 +97,15 @@ function proc_cmd() {
     fi
 }
 
+function pg_ctrl() {
+    local proc_file="pgctrl"
+    proc_cmd ${proc_file} "$@"
+}
+
 function pg_thread() {
     local thread=$1
     local proc_file="kpktgend_${thread}"
     shift
-    proc_cmd ${proc_file} "$@"
-}
-
-function pg_ctrl() {
-    local proc_file="pgctrl"
     proc_cmd ${proc_file} "$@"
 }
 
@@ -129,142 +129,4 @@ function reset_all_threads() {
     # This might block if another start is running
     pg_ctrl "reset"
     info "Done - reset"
-}
-
-## -- Device commands -- ##
-
-# Common config for a dev
-function base_config() {
-    if [ -n "$1" ]; then
-        local dev="$1"
-    else
-	err 2 "[$FUNCNAME] need device input"
-    fi
-
-    info "Base config of $dev"
-    pg_set $dev "flag QUEUE_MAP_CPU"
-    pg_set $dev "count $COUNT"
-    pg_set $dev "clone_skb $CLONE_SKB"
-    pg_set $dev "pkt_size $PKT_SIZE"
-    pg_set $dev "delay $DELAY"
-    pg_set $dev "dst_mac ${DST_MAC}"
-}
-
-function dev_set_dst_ip() {
-    if [ -n "$2" ]; then
-	local dev="$1"
-	local IP="$2"
-	echo "- Dev:$dev Destination IP:$IP"
-	cmd_dev $dev "dst $IP"
-    else
-	err 2 "[$FUNCNAME] input error"
-    fi
-}
-
-function set_dst_ip() {
-    if [ -n "$1" ]; then
-        local IP="$1"
-        echo "- Destination IP:$IP"
-        pgset "dst $IP"
-    else
-        err 2 "[$FUNCNAME] input error"
-    fi
-}
-
-# Input (min,max) IP numbers
-function set_dst_ip_range() {
-    if [ -z "$2" ]; then
-	echo "[$FUNCNAME] input error"
-	exit 2
-    fi
-    local min=$1
-    local max=$2
-    echo "- Random IP destinations min:$min - max:$max"
-    pgset "flag IPDST_RND"
-    pgset "dst_min $min"
-    pgset "dst_max $max"
-}
-
-# Input (min,max) IP numbers
-function set_src_ip_range() {
-    if [ -z "$2" ]; then
-	echo "[$FUNCNAME] input error"
-	exit 2
-    fi
-    local min=$1
-    local max=$2
-    echo "- Random IP source min:$min - max:$max"
-    pgset "flag IPSRC_RND"
-    pgset "src_min $min"
-    pgset "src_max $max"
-}
-
-# Setup flow generation
-# Input (flows,flowlen)
-function set_flows() {
-    if [ -z "$2" ]; then
-	echo "[$FUNCNAME] input error"
-	exit 2
-    fi
-    local flows=$1
-    local flowlen=$2
-    echo "- Setup flow generation: flows:$flows flowlen:$flowlen "
-    pgset "flag FLOW_SEQ"
-    pgset "flows $flows"
-    pgset "flowlen $flowlen"
-}
-
-
-# Input (min,max) port numbers
-function set_udp_src_range() {
-    if [ -z "$2" ]; then
-	echo "[$FUNCNAME] input error"
-	exit 2
-    fi
-    local min=$1
-    local max=$2
-    echo "- Random UDP source port min:$min - max:$max"
-    pgset "flag UDPSRC_RND"
-    pgset "udp_src_min $min"
-    pgset "udp_src_max $max"
-}
-
-# Input (min,max) port numbers
-function set_udp_dst_range() {
-    if [ -z "$2" ]; then
-	echo "[$FUNCNAME] input error"
-	exit 2
-    fi
-    local min=$1
-    local max=$2
-    echo "- Random UDP destination port min:$min - max:$max"
-    pgset "flag UDPDST_RND"
-    pgset "udp_dst_min $min"
-    pgset "udp_dst_max $max"
-}
-
-# General func for setting $dev $key $value
-function dev_set_key_value() {
-    if [ -n "$2" ]; then
-	local dev="$1"
-	local key="$2"
-	local val="$3"
-	echo "- Dev:$dev Set $key=$val"
-	cmd_dev $dev "$key $val"
-    else
-	err 2 "[$FUNCNAME] input error"
-    fi
-}
-
-# General func for setting $dev $key $value
-function dev_set_flag() {
-    if [ -n "$2" ]; then
-	local dev="$1"
-	local key=flag
-	local val="$2"
-	echo "- Dev:$dev Set $key $val"
-	cmd_dev $dev "$key $val"
-    else
-	err 2 "[$FUNCNAME] input error"
-    fi
 }
