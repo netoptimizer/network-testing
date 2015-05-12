@@ -220,16 +220,16 @@ function base_config() {
     if [ -n "$1" ]; then
         local dev="$1"
     else
-	warn "[$FUNCNAME] need device input"
+	err 2 "[$FUNCNAME] need device input"
     fi
 
-    echo "Base config of $PGDEV"
-    pgset "count $COUNT"
-    pgset "clone_skb $CLONE_SKB"
-    pgset "pkt_size $PKT_SIZE"
-    pgset "delay $DELAY"
-    pgset "flag QUEUE_MAP_CPU"
-    pgset "dst_mac ${DST_MAC}"
+    info "Base config of $dev"
+    pg_set $dev "flag QUEUE_MAP_CPU"
+    pg_set $dev "count $COUNT"
+    pg_set $dev "clone_skb $CLONE_SKB"
+    pg_set $dev "pkt_size $PKT_SIZE"
+    pg_set $dev "delay $DELAY"
+    pg_set $dev "dst_mac ${DST_MAC}"
 }
 
 function dev_set_dst_ip() {

@@ -26,13 +26,22 @@ max=$NUM_THREADS
 reset_all_threads
 create_threads 0 $NUM_THREADS
 
-for num in `seq $min $max`; do
-    # FIXME: Ugly old style usage of global variable setting... should
-    # fix before publishing this script...
-    PGDEV=/proc/net/pktgen/${DEV}@$num
-    base_config
-    set_dst_ip $DEST_IP
-    set_udp_src_range $UDP_MIN $UDP_MAX
+for thread in `seq $min $max`; do
+    dev=${DEV}@${thread}
+    # base config
+    pg_set $dev "flag QUEUE_MAP_CPU"
+    pg_set $dev "count $COUNT"
+    pg_set $dev "clone_skb $CLONE_SKB"
+    pg_set $dev "pkt_size $PKT_SIZE"
+    pg_set $dev "delay $DELAY"
+    pg_set $dev "dst_mac $DST_MAC"
+
+    pg_set $dev "dst $DEST_IP"
+    # Setup random UDP src range
+    pg_set $dev "flag UDPSRC_RND"
+    pg_set $dev "udp_src_min $UDP_MIN"
+    pg_set $dev "udp_src_max $UDP_MAX"
+
 done
 
 start_run

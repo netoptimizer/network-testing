@@ -34,10 +34,7 @@ create_threads 0 $NUM_THREADS
 
 for thread in `seq $min $max`; do
     dev=${DEV}@${thread}
-    # FIXME: Ugly old style usage of global variable setting... should
-    # fix before publishing this script...
-    PGDEV=/proc/net/pktgen/$dev
-    base_config
+    base_config $dev
 
     pg_set $dev "dst $DEST_IP"
     pg_set $dev "burst $BURST"
