@@ -83,13 +83,15 @@ function proc_cmd() {
     fi
     # Quoting of "$@" is important for space expansion
     echo "$@" > "$proc_ctrl"
+    local status=$?
 
     # FIXME: Why "fgrep"
     result=`cat $proc_ctrl | fgrep "Result: OK:"`
-    # FIXME: Use the shell $? exit code instead
     if [ "$result" = "" ]; then
-	warn "failed pktgen cmd: $@ > $proc_ctrl"
-        cat $proc_ctrl | fgrep Result: >&2
+	cat $proc_ctrl | fgrep Result: >&2
+	if [ $status -ne 0 ]; then
+	    err 5 "Write error($status) occured cmd: \"$@ > $proc_ctrl\""
+	fi
     fi
 }
 
