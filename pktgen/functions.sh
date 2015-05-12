@@ -12,16 +12,18 @@ fi
 function err() {
     local exitcode=$1
     shift
-    echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')] ERROR: $@" >&2
+    echo "ERROR: $@" >&2
     exit $exitcode
 }
 
 function warn() {
-    echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')] WARN : $@" >&2
+    echo "WARN : $@" >&2
 }
 
 function info() {
-    echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')] INFO : $@"
+    if [ -n "$VERBOSE" ]; then
+	echo "INFO : $@" >&2
+    fi
 }
 
 ## -- General shell tricks --
@@ -118,9 +120,9 @@ function pg_set() {
 ## -- Pgcontrol commands -- ##
 
 function start_run() {
-    info "Running... ctrl^C to stop"
+    echo "Running... ctrl^C to stop"
     pg_ctrl "start"
-    info "Done"
+    echo "Done"
 }
 
 function reset_all_threads() {
