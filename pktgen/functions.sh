@@ -111,7 +111,6 @@ function pg_ctrl() {
 
 function pg_set() {
     local dev=$1
-    #local thread=$2
     local proc_file="$dev"
     shift
     proc_cmd ${proc_file} "$@"
@@ -141,9 +140,8 @@ function remove_thread() {
     fi
     local num="$1"
 
-    PGDEV=/proc/net/pktgen/kpktgend_${num}
-    echo "[$FUNCNAME] Removing all devices from thread $PGDEV"
-    pgset "rem_device_all"
+    echo "[$FUNCNAME] Removing all devices from thread $num"
+    pg_thread $num "rem_device_all"
 }
 
 function remove_threads() {
