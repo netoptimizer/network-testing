@@ -30,7 +30,7 @@ for ((thread = 0; thread < $THREADS; thread++)); do
     # make then unique, but any name will do.
     dev=${DEV}@${thread}
 
-    # Add remove all other devices and $dev to thread
+    # Add remove all other devices and add_device $dev to thread
     pg_thread $thread "rem_device_all"
     pg_thread $thread "add_device" $dev
 

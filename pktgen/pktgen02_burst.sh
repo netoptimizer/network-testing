@@ -32,7 +32,7 @@ pg_ctrl "reset"
 for ((thread = 0; thread < $THREADS; thread++)); do
     dev=${DEV}@${thread}
 
-    # Add remove all other devices and $dev to thread
+    # Add remove all other devices and add_device $dev to thread
     pg_thread $thread "rem_device_all"
     pg_thread $thread "add_device" $dev
 
@@ -50,6 +50,18 @@ for ((thread = 0; thread < $THREADS; thread++)); do
     # Setup burst
     pg_set $dev "burst $BURST"
 done
+
+# Run if user hits control-c
+function control_c() {
+    # Print results
+    for ((thread = 0; thread < $THREADS; thread++)); do
+	dev=${DEV}@${thread}
+	echo "Device: $dev"
+	cat /proc/net/pktgen/$dev | grep -A2 "Result:"
+    done
+}
+# trap keyboard interrupt (Ctrl-C)
+trap control_c SIGINT
 
 echo "Running... ctrl^C to stop" >&2
 pg_ctrl "start"
