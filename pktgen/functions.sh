@@ -93,19 +93,19 @@ function proc_cmd() {
     fi
 }
 
-function cmd_thread() {
+function pg_thread() {
     local thread=$1
     local proc_file="kpktgend_${thread}"
     shift
     proc_cmd ${proc_file} "$@"
 }
 
-function cmd_pgctrl() {
+function pg_ctrl() {
     local proc_file="pgctrl"
     proc_cmd ${proc_file} "$@"
 }
 
-function cmd_dev() {
+function pg_set() {
     local dev=$1
     #local thread=$2
     local proc_file="$dev"
@@ -117,14 +117,14 @@ function cmd_dev() {
 
 function start_run() {
     info "Running... ctrl^C to stop"
-    cmd_pgctrl "start"
+    pg_ctrl "start"
     info "Done"
 }
 
 function reset_all_threads() {
     info "Resetting all threads"
     # This might block if another start is running
-    cmd_pgctrl "reset"
+    pg_ctrl "reset"
     info "Done - reset"
 }
 
@@ -170,7 +170,7 @@ function add_device() {
     fi
 
     echo "Adding ${dev} to thread:$thread"
-    cmd_thread $thread "add_device ${dev}"
+    pg_thread $thread "add_device ${dev}"
 }
 
 function create_thread() {
@@ -185,11 +185,11 @@ function create_thread() {
     fi
 
     info "Removing all devices from thread:$thread"
-    cmd_thread $thread "rem_device_all"
+    pg_thread $thread "rem_device_all"
 
     local mqdev=${dev}@${thread}
     info "Adding device:${mqdev} to thread:$thread"
-    cmd_thread $thread "add_device ${mqdev}"
+    pg_thread $thread "add_device ${mqdev}"
 }
 
 function create_threads() {
