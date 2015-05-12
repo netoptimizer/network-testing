@@ -51,4 +51,5 @@ for thread in `seq 0 $NUM_THREADS`; do
     pg_set $dev "burst $BURST"
 done
 
-start_run
+echo "Running... ctrl^C to stop" >&2
+pg_ctrl "start"

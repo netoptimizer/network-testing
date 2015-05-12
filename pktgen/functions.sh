@@ -115,18 +115,3 @@ function pg_set() {
     shift
     proc_cmd ${proc_file} "$@"
 }
-
-## -- Pgcontrol commands -- ##
-
-function start_run() {
-    echo "Running... ctrl^C to stop"
-    pg_ctrl "start"
-    echo "Done"
-}
-
-function reset_all_threads() {
-    info "Resetting all threads"
-    # This might block if another start is running
-    pg_ctrl "reset"
-    info "Done - reset"
-}
