@@ -23,7 +23,7 @@ COUNT="0"  # Zero means indefinitely
 # (example of setting default params in your script)
 [ -z "$DEST_IP" ] && DEST_IP="198.18.0.42"
 [ -z "$DST_MAC" ] && DST_MAC="90:e2:ba:ff:ff:ff"
-[ -z "$BURST" ] && BURST=0
+[ -z "$BURST" ] && BURST=32
 
 # General cleanup everything since last run
 pg_ctrl "reset"
@@ -42,6 +42,7 @@ for ((thread = 0; thread < $THREADS; thread++)); do
     pg_set $dev "clone_skb $CLONE_SKB"
     pg_set $dev "pkt_size $PKT_SIZE"
     pg_set $dev "delay $DELAY"
+    pg_set $dev "flag NO_TIMESTAMP"
 
     # Destination
     pg_set $dev "dst_mac $DST_MAC"

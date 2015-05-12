@@ -12,7 +12,7 @@ source ${basedir}/parameters.sh
 # Base Config
 DELAY="0"        # Zero means max speed
 COUNT="100000"   # Zero means indefinitely
-[ -z "$CLONE_SKB" ] && CLONE_SKB="64"
+[ -z "$CLONE_SKB" ] && CLONE_SKB="0"
 
 # Packet setup
 UDP_MIN=9
@@ -40,6 +40,9 @@ for ((thread = 0; thread < $THREADS; thread++)); do
     pg_set $dev "clone_skb $CLONE_SKB"
     pg_set $dev "pkt_size $PKT_SIZE"
     pg_set $dev "delay $DELAY"
+
+    # Flag example disabling timestamping
+    pg_set $dev "flag NO_TIMESTAMP"
 
     # Destination
     pg_set $dev "dst_mac $DST_MAC"
