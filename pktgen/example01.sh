@@ -8,8 +8,8 @@ root_check_run_with_sudo "$@"
 source ${basedir}/parameters.sh
 
 # Base Config
-DELAY="0"       # Zero means max speed
-COUNT="100000"  # Zero means indefinitely
+DELAY="0"        # Zero means max speed
+COUNT="1000000"  # Zero means indefinitely
 [ -z "$CLONE_SKB" ] && CLONE_SKB="64"
 
 # Packet setup

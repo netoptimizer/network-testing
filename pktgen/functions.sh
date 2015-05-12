@@ -26,41 +26,7 @@ function info() {
     fi
 }
 
-## -- General shell tricks --
-
-function root_check_run_with_sudo() {
-    # Trick so, program can be run as normal user, will just use "sudo"
-    #  call as root_check_run_as_sudo "$@"
-    if [ "$EUID" -ne 0 ]; then
-	if [ -x $0 ]; then # Directly executable use sudo
-	    info "Not root, running with sudo"
-            sudo "$0" "$@"
-            exit $?
-	fi
-	err 4 "cannot perform sudo run of $0"
-    fi
-}
-
 ## -- Generic proc commands -- ##
-
-function pgset() {
-    local result
-
-    if [ "$DEBUG" == "yes" ]; then
-	echo "cmd: $1 > $PGDEV"
-    fi
-    echo $1 > $PGDEV
-    local res=$?
-    if [ $res -ne 0 ]; then
-	warn "[$FUNCNAME] some error($res) occured cmd: $1 > $PGDEV"
-    fi
-
-    result=`cat $PGDEV | fgrep "Result: OK:"`
-    if [ "$result" = "" ]; then
-         cat $PGDEV | fgrep Result:
-    fi
-}
-
 export PROC_DIR=/proc/net/pktgen
 
 # More generic replacement for pgset(), that does not depend on global
@@ -73,7 +39,7 @@ function proc_cmd() {
     shift
     local proc_ctrl=${PROC_DIR}/$proc_file
     if [ ! -e "$proc_ctrl" ]; then
-	err 3 "proc file:$proc_ctrl does not exists!"
+	err 3 "proc file:$proc_ctrl does not exists (dev added to thread?)"
     else
 	if [ ! -w "$proc_ctrl" ]; then
 	    err 4 "proc file:$proc_ctrl not writable, not root?!"
@@ -87,7 +53,6 @@ function proc_cmd() {
     echo "$@" > "$proc_ctrl"
     local status=$?
 
-    # FIXME: Why "fgrep"
     result=`cat $proc_ctrl | fgrep "Result: OK:"`
     if [ "$result" = "" ]; then
 	cat $proc_ctrl | fgrep Result: >&2
@@ -114,4 +79,38 @@ function pg_set() {
     local proc_file="$dev"
     shift
     proc_cmd ${proc_file} "$@"
+}
+
+# Old obsolete "pgset" function, with slightly improved err handling
+function pgset() {
+    local result
+
+    if [ "$DEBUG" == "yes" ]; then
+	echo "cmd: $1 > $PGDEV"
+    fi
+    echo $1 > $PGDEV
+    local status=$?
+
+    result=`cat $PGDEV | fgrep "Result: OK:"`
+    if [ "$result" = "" ]; then
+         cat $PGDEV | fgrep Result:
+	 if [ $status -ne 0 ]; then
+	     err 5 "Write error($status) occured cmd: \"$1 > $PGDEV\""
+	 fi
+    fi
+}
+
+## -- General shell tricks --
+
+function root_check_run_with_sudo() {
+    # Trick so, program can be run as normal user, will just use "sudo"
+    #  call as root_check_run_as_sudo "$@"
+    if [ "$EUID" -ne 0 ]; then
+	if [ -x $0 ]; then # Directly executable use sudo
+	    info "Not root, running with sudo"
+            sudo "$0" "$@"
+            exit $?
+	fi
+	err 4 "cannot perform sudo run of $0"
+    fi
 }
