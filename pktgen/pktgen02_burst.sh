@@ -13,7 +13,6 @@ basedir=`dirname $0`
 source ${basedir}/functions.sh
 root_check_run_with_sudo "$@"
 source ${basedir}/parameters.sh
-source ${basedir}/config.sh
 
 # Base Config
 DELAY="0"  # Zero means max speed
@@ -22,25 +21,47 @@ COUNT="0"  # Zero means indefinitely
 
 # Packet setup
 # (example of setting default params in your script)
-[ -z "$DEST_IP" ] && DEST_IP=10.10.10.1
-[ -z "$DST_MAC" ] && DST_MAC=$MAC_eth61_albpd42
+[ -z "$DEST_IP" ] && DEST_IP="198.18.0.42"
+[ -z "$DST_MAC" ] && DST_MAC="90:e2:ba:ff:ff:ff"
 [ -z "$BURST" ] && BURST=0
 
-# Threads
-min=0
-max=$NUM_THREADS
-reset_all_threads
-create_threads 0 $NUM_THREADS
+# General cleanup everything since last run
+pg_ctrl "reset"
 
-for thread in `seq $min $max`; do
+# Threads are specified with parameter -t value in $THREADS
+for ((thread = 0; thread < $THREADS; thread++)); do
     dev=${DEV}@${thread}
-    # FIXME: Ugly old style usage of global variable setting... should
-    # fix before publishing this script...
-    PGDEV=/proc/net/pktgen/$dev
-    base_config
 
-    dev_set_dst_ip $dev $DEST_IP
-    dev_set_key_value $dev "burst" $BURST
+    # Add remove all other devices and add_device $dev to thread
+    pg_thread $thread "rem_device_all"
+    pg_thread $thread "add_device" $dev
+
+    # Base config
+    pg_set $dev "flag QUEUE_MAP_CPU"
+    pg_set $dev "count $COUNT"
+    pg_set $dev "clone_skb $CLONE_SKB"
+    pg_set $dev "pkt_size $PKT_SIZE"
+    pg_set $dev "delay $DELAY"
+
+    # Destination
+    pg_set $dev "dst_mac $DST_MAC"
+    pg_set $dev "dst $DEST_IP"
+
+    # Setup burst
+    pg_set $dev "burst $BURST"
 done
 
-start_run
+# Run if user hits control-c
+function control_c() {
+    # Print results
+    for ((thread = 0; thread < $THREADS; thread++)); do
+	dev=${DEV}@${thread}
+	echo "Device: $dev"
+	cat /proc/net/pktgen/$dev | grep -A2 "Result:"
+    done
+}
+# trap keyboard interrupt (Ctrl-C)
+trap control_c SIGINT
+
+echo "Running... ctrl^C to stop" >&2
+pg_ctrl "start"
