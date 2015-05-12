@@ -26,14 +26,17 @@ COUNT="0"  # Zero means indefinitely
 [ -z "$DST_MAC" ] && DST_MAC=$MAC_eth61_albpd42
 [ -z "$BURST" ] && BURST=0
 
-# Threads
-min=0
-max=$NUM_THREADS
-reset_all_threads
-create_threads 0 $NUM_THREADS
+# General cleanup everything since last run
+pg_ctrl "reset"
 
-for thread in `seq $min $max`; do
+# Threads are specified with parameter -t value in $NUM_THREADS
+for thread in `seq 0 $NUM_THREADS`; do
     dev=${DEV}@${thread}
+
+    # Add remove all other devices and $dev to thread
+    pg_thread $thread "rem_device_all"
+    pg_thread $thread "add_device" $dev
+
     base_config $dev
 
     pg_set $dev "dst $DEST_IP"

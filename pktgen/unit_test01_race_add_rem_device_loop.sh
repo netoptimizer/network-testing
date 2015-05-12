@@ -80,16 +80,11 @@ function write_to_interface() {
 function add_remove_loop() {
     while (true); do
 	thread=0
-	#add_device $DEV $thread
- 	remove_thread $thread &
+	pg_thread $thread "rem_device_all" &
 	sleep 0.05
-	add_device $DEV $thread
+	pg_thread $thread "add_device" $DEV
 	write_to_interface
 	wait $!
-	#add_device $DEV $thread
-#	thread=2
-#	add_device $DEV $thread
-#	reset_all_threads
     done
 }
 
