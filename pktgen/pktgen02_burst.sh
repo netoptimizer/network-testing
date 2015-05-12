@@ -28,8 +28,8 @@ COUNT="0"  # Zero means indefinitely
 # General cleanup everything since last run
 pg_ctrl "reset"
 
-# Threads are specified with parameter -t value in $NUM_THREADS
-for thread in `seq 0 $NUM_THREADS`; do
+# Threads are specified with parameter -t value in $THREADS
+for ((thread = 0; thread < $THREADS; thread++)); do
     dev=${DEV}@${thread}
 
     # Add remove all other devices and $dev to thread

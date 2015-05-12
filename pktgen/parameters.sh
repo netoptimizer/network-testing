@@ -38,9 +38,10 @@ while getopts "s:i:d:m:t:c:b:vx" option; do
 	  info "Destination MAC set to: $DST_MAC"
           ;;
         t)
-          export NUM_THREADS=$OPTARG
-	  let "NUM_THREADS -= 1"
-	  info "Number of threads to start: $OPTARG (0 to $NUM_THREADS)"
+	  export THREADS=$OPTARG
+          export CPU_THREADS=$OPTARG
+	  let "CPU_THREADS -= 1"
+	  info "Number of threads to start: $OPTARG (0 to $CPU_THREADS)"
           ;;
         c)
 	  export CLONE_SKB=$OPTARG
@@ -63,17 +64,18 @@ while getopts "s:i:d:m:t:c:b:vx" option; do
           err 2 "[ERROR] Unknown parameters!!!"
     esac
 done
-#shift $[ OPTIND - 1 ]
 shift $(( $OPTIND - 1 ))
 
 if [ -z "$PKT_SIZE" ]; then
+    # NIC adds 4 bytes CRC
     export PKT_SIZE=60
     info "Default packet size set to: set to: $PKT_SIZE bytes"
 fi
 
-if [ -z "$NUM_THREADS" ]; then
-    # Zero threads means one thread, because CPU numbers are zero indexed
-    export NUM_THREADS=0
+if [ -z "$THREADS" ]; then
+    # Zero CPU threads means one thread, because CPU numbers are zero indexed
+    export CPU_THREADS=0
+    export THREADS=1
 fi
 
 if [ -z "$DEV" ]; then
