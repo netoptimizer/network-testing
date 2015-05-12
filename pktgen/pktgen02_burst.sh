@@ -13,7 +13,6 @@ basedir=`dirname $0`
 source ${basedir}/functions.sh
 root_check_run_with_sudo "$@"
 source ${basedir}/parameters.sh
-source ${basedir}/config.sh
 
 # Base Config
 DELAY="0"  # Zero means max speed
@@ -22,8 +21,8 @@ COUNT="0"  # Zero means indefinitely
 
 # Packet setup
 # (example of setting default params in your script)
-[ -z "$DEST_IP" ] && DEST_IP=10.10.10.1
-[ -z "$DST_MAC" ] && DST_MAC=$MAC_eth61_albpd42
+[ -z "$DEST_IP" ] && DEST_IP="198.18.0.42"
+[ -z "$DST_MAC" ] && DST_MAC="90:e2:ba:ff:ff:ff"
 [ -z "$BURST" ] && BURST=0
 
 # General cleanup everything since last run

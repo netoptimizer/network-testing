@@ -15,7 +15,6 @@ basedir=`dirname $0`
 source ${basedir}/functions.sh
 root_check_run_with_sudo "$@"
 source ${basedir}/parameters.sh
-source ${basedir}/config.sh
 
 # Detailed description of race
 # ============================
