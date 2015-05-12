@@ -39,8 +39,8 @@ for thread in `seq $min $max`; do
     PGDEV=/proc/net/pktgen/$dev
     base_config
 
-    dev_set_dst_ip $dev $DEST_IP
-    dev_set_key_value $dev "burst" $BURST
+    pg_set $dev "dst $DEST_IP"
+    pg_set $dev "burst $BURST"
 done
 
 start_run
