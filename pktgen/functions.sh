@@ -56,9 +56,9 @@ function proc_cmd() {
     result=`cat $proc_ctrl | fgrep "Result: OK:"`
     if [ "$result" = "" ]; then
 	cat $proc_ctrl | fgrep Result: >&2
-	if [ $status -ne 0 ]; then
-	    err 5 "Write error($status) occured cmd: \"$@ > $proc_ctrl\""
-	fi
+    fi
+    if [ $status -ne 0 ]; then
+	err 5 "Write error($status) occured cmd: \"$@ > $proc_ctrl\""
     fi
 }
 
@@ -94,9 +94,9 @@ function pgset() {
     result=`cat $PGDEV | fgrep "Result: OK:"`
     if [ "$result" = "" ]; then
          cat $PGDEV | fgrep Result:
-	 if [ $status -ne 0 ]; then
-	     err 5 "Write error($status) occured cmd: \"$1 > $PGDEV\""
-	 fi
+    fi
+    if [ $status -ne 0 ]; then
+	err 5 "Write error($status) occured cmd: \"$1 > $PGDEV\""
     fi
 }
 
