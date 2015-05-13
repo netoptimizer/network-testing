@@ -11,7 +11,7 @@ function usage() {
     echo "  -m : destination MAC-addr"
     echo "  -t : threads to start"
     echo "  -c : SKB clones send before alloc new SKB"
-    echo "  -b : HW level bursting of SKBs" #experimental feature
+    echo "  -b : HW level bursting of SKBs"
     echo "  -v : verbose"
     echo "  -x : debug"
     echo ""
@@ -49,7 +49,7 @@ while getopts "s:i:d:m:t:c:b:vx" option; do
           ;;
         b)
 	  export BURST=$OPTARG
-	  info "Experimental SKB bursting: $OPTARG"
+	  info "SKB bursting: $OPTARG"
           ;;
         v)
           info "- Verbose mode -"

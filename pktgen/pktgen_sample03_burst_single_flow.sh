@@ -19,18 +19,18 @@
 basedir=`dirname $0`
 source ${basedir}/functions.sh
 root_check_run_with_sudo "$@"
+
+# Parameter parsing via include
 source ${basedir}/parameters.sh
+# Set some default params, if they didn't get set
+[ -z "$DEST_IP" ]   && DEST_IP="198.18.0.42"
+[ -z "$DST_MAC" ]   && DST_MAC="90:e2:ba:ff:ff:ff"
+[ -z "$BURST" ]     && BURST=32
+[ -z "$CLONE_SKB" ] && CLONE_SKB="100000"
 
 # Base Config
 DELAY="0"  # Zero means max speed
 COUNT="0"  # Zero means indefinitely
-[ -z "$CLONE_SKB" ] && CLONE_SKB="100000"
-
-# Packet setup
-# (example of setting default params in your script)
-[ -z "$DEST_IP" ] && DEST_IP="198.18.0.42"
-[ -z "$DST_MAC" ] && DST_MAC="90:e2:ba:ff:ff:ff"
-[ -z "$BURST" ] && BURST=32
 
 # General cleanup everything since last run
 pg_ctrl "reset"
@@ -55,8 +55,13 @@ for ((thread = 0; thread < $THREADS; thread++)); do
     pg_set $dev "dst_mac $DST_MAC"
     pg_set $dev "dst $DEST_IP"
 
-    # Setup burst
-    pg_set $dev "burst $BURST"
+    # Setup burst, for easy testing -b 0 disable bursting
+    # (internally in pktgen default and minimum burst=1)
+    if [[ ${BURST} != 0 ]]; then
+	pg_set $dev "burst $BURST"
+    else
+	info "$dev: Not using burst"
+    fi
 done
 
 # Run if user hits control-c
