@@ -1,23 +1,46 @@
 #!/bin/bash
 #
+# Benchmark script:
+#  - developed for benchmarking ingress qdisc path
+#
 # Script for injecting packets into RX path of the stack with pktgen
 # "xmit_mode netif_receive".  With an invalid dst_mac this will only
 # measure the ingress code path as packets gets dropped in ip_rcv().
 #
+# This script don't really need any hardware.  It benchmarks software
+# RX path just after NIC driver level.  With bursting is also
+# "removes" the SKB alloc/free overhead.
+#
+# Setup scenarios for measuring ingress qdisc (with invalid dst_mac):
+# ------------------------------------------------------------------
+# (1) no ingress (uses static_key_false(&ingress_needed))
+#
+# (2) ingress on other dev (change ingress_needed and calls
+#     handle_ing() but exit early)
+#
+#  config:  tc qdisc add dev $SOMEDEV handle ffff: ingress
+#
+# (3) ingress on this dev, handle_ing() -> tc_classify()
+#
+#  config:  tc qdisc add dev $DEV handle ffff: ingress
+#
+# (4) ingress on this dev + drop at u32 classifier/action.
+#
 basedir=`dirname $0`
 source ${basedir}/functions.sh
 root_check_run_with_sudo "$@"
+
+# Parameter parsing via include
 source ${basedir}/parameters.sh
-
-# Base Config
-DELAY="0"        # Zero means max speed
-COUNT="10000000" # Zero means indefinitely
-
 # Using invalid DST_MAC will cause the packets to get dropped in
 # ip_rcv() which is part of the test
 [ -z "$DEST_IP" ] && DEST_IP="198.18.0.42"
 [ -z "$DST_MAC" ] && DST_MAC="90:e2:ba:ff:ff:ff"
-[ -z "$BURST" ] && BURST=32
+[ -z "$BURST" ] && BURST=1024
+
+# Base Config
+DELAY="0"        # Zero means max speed
+COUNT="10000000" # Zero means indefinitely
 
 # General cleanup everything since last run
 pg_ctrl "reset"
