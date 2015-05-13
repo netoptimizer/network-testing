@@ -1,6 +1,7 @@
 #!/bin/bash
 #
 # Example01: Using pktgen sending on multiple CPUs
+#  * flow variation via random UDP source port
 #
 basedir=`dirname $0`
 source ${basedir}/functions.sh
@@ -14,9 +15,10 @@ DELAY="0"        # Zero means max speed
 COUNT="100000"   # Zero means indefinitely
 [ -z "$CLONE_SKB" ] && CLONE_SKB="0"
 
-# Packet setup
+# Flow variation random source port between min and max
 UDP_MIN=9
 UDP_MAX=109
+
 # (example of setting default params in your script)
 [ -z "$DEST_IP" ] && DEST_IP="198.18.0.42"
 [ -z "$DST_MAC" ] && DST_MAC="90:e2:ba:ff:ff:ff"

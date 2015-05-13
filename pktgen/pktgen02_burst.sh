@@ -1,13 +1,16 @@
 #!/bin/bash
 #
+# Notice: On purpose generates a single (UDP) flow towards target,
+#   reason behind this is to only overload/activate a single CPU on
+#   target host.
+#
 # Script for playing with pktgen "burst" option (use -b $N)
 #  - This avoids writing the HW tailptr on every driver xmit
 #  - The performance boost is impressive, see commit link
 #    If correctly tuned, single CPU 10G wirespeed small pkts is possible
 #
-#  Avail since:
+#  Avail since: kernel v3.18
 #   commit 38b2cf2982dc73 ("net: pktgen: packet bursting via skb->xmit_more")
-#   https://git.kernel.org/cgit/linux/kernel/git/davem/net-next.git/commit/?id=38b2cf2982dc73
 #
 basedir=`dirname $0`
 source ${basedir}/functions.sh
