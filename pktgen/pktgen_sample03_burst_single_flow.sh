@@ -1,16 +1,20 @@
 #!/bin/bash
 #
+# Using pktgen "burst" option (use -b $N)
+#  - To boost max performance
+#  - Avail since: kernel v3.18
+#   * commit 38b2cf2982dc73 ("net: pktgen: packet bursting via skb->xmit_more")
+#  - This avoids writing the HW tailptr on every driver xmit
+#  - The performance boost is impressive, see commit and blog [2]
+#  - If correctly tuned[1], single CPU 10G wirespeed small pkts is possible
+#
 # Notice: On purpose generates a single (UDP) flow towards target,
 #   reason behind this is to only overload/activate a single CPU on
-#   target host.
+#   target host.  And no randomness for pktgen also makes it faster.
 #
-# Script for playing with pktgen "burst" option (use -b $N)
-#  - This avoids writing the HW tailptr on every driver xmit
-#  - The performance boost is impressive, see commit link
-#    If correctly tuned, single CPU 10G wirespeed small pkts is possible
-#
-#  Avail since: kernel v3.18
-#   commit 38b2cf2982dc73 ("net: pktgen: packet bursting via skb->xmit_more")
+# Tuning see:
+#  [1] http://netoptimizer.blogspot.dk/2014/06/pktgen-for-network-overload-testing.html
+#  [2] http://netoptimizer.blogspot.dk/2014/10/unlocked-10gbps-tx-wirespeed-smallest.html
 #
 basedir=`dirname $0`
 source ${basedir}/functions.sh
