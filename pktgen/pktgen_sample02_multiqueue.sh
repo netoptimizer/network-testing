@@ -1,6 +1,9 @@
 #!/bin/bash
 #
-# Example01: Using pktgen sending on multiple CPUs
+# Multiqueue: Using pktgen threads for sending on multiple CPUs
+#  * adding devices to kernel threads
+#  * notice the naming scheme for keeping device names unique
+#  * nameing scheme: dev@thread_number
 #  * flow variation via random UDP source port
 #
 basedir=`dirname $0`
@@ -36,8 +39,11 @@ for ((thread = 0; thread < $THREADS; thread++)); do
     pg_thread $thread "rem_device_all"
     pg_thread $thread "add_device" $dev
 
-    # Base config of dev
+    # Notice config queue to map to cpu (mirrors smp_processor_id())
+    # It is beneficial to map IRQ /proc/irq/*/smp_affinity 1:1 to CPU number
     pg_set $dev "flag QUEUE_MAP_CPU"
+
+    # Base config of dev
     pg_set $dev "count $COUNT"
     pg_set $dev "clone_skb $CLONE_SKB"
     pg_set $dev "pkt_size $PKT_SIZE"
