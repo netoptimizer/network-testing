@@ -4,9 +4,9 @@
 
 function usage() {
     echo ""
-    echo "Usage: $0 [-vx] [-s pkt_size]"
+    echo "Usage: $0 [-vx] -i ethX"
+    echo "  -i : output interface/device (required)"
     echo "  -s : packet size"
-    echo "  -i : output interface/device"
     echo "  -d : destination IP"
     echo "  -m : destination MAC-addr"
     echo "  -t : threads to start"
@@ -19,7 +19,7 @@ function usage() {
 
 ##  --- Parse command line arguments / parameters ---
 ## echo "Commandline options:"
-while getopts "s:i:d:m:t:c:b:vx" option; do
+while getopts "s:i:d:m:t:c:b:vxh" option; do
     case $option in
         s)
           export PKT_SIZE=$OPTARG
@@ -59,7 +59,7 @@ while getopts "s:i:d:m:t:c:b:vx" option; do
           info "- Debug mode -"
           export DEBUG=yes
           ;;
-        ?|*)
+        h|?|*)
           usage;
           err 2 "[ERROR] Unknown parameters!!!"
     esac
