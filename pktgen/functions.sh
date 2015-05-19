@@ -103,7 +103,7 @@ function pgset() {
          cat $PGDEV | fgrep Result:
     fi
     if [ $status -ne 0 ]; then
-	err 5 "Write error($status) occured cmd: \"$1 > $PGDEV\""
+	err 5 "Write error($status) occurred cmd: \"$1 > $PGDEV\""
     fi
 }
 
