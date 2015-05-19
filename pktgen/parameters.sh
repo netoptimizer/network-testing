@@ -90,3 +90,8 @@ fi
 if [ -z "$DEST_IP" ]; then
     warn "Missing destination IP address"
 fi
+
+if [ ! -d /proc/net/pktgen ]; then
+    info "Loading kernel module: pktgen"
+    modprobe pktgen
+fi

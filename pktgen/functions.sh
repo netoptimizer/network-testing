@@ -5,10 +5,6 @@
 # Author: Jesper Dangaaard Brouer
 # License: GPL
 
-if [[ ! -d /proc/net/pktgen ]]; then
-        modprobe pktgen
-fi
-
 ## -- General shell logging cmds --
 function err() {
     local exitcode=$1
