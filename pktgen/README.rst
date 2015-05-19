@@ -16,18 +16,18 @@ The parameters.sh file support easy and consistant parameter parsing
 across the sample scripts.  Usage example is printed on errors::
 
  Usage: ./pktgen_sample01_simple.sh [-vx] -i ethX
-   -i : output interface/device (required)
-   -s : packet size
-   -d : destination IP
-   -m : destination MAC-addr
-   -t : threads to start
-   -c : SKB clones send before alloc new SKB
-   -b : HW level bursting of SKBs
-   -v : verbose
-   -x : debug
+  -i : ($DEV)       output interface/device (required)
+  -s : ($PKT_SIZE)  packet size
+  -d : ($DEST_IP)   destination IP
+  -m : ($DST_MAC)   destination MAC-addr
+  -t : ($THREADS)   threads to start
+  -c : ($SKB_CLONE) SKB clones send before alloc new SKB
+  -b : ($BURST)     HW level bursting of SKBs
+  -v : ($VERBOSE)   verbose
+  -x : ($DEBUG)     debug
 
-Read parameters.sh to see which global variables you can use.  The
-required interface/device parameter "-i" sets variable $DEV.
+The global variable being set is also listed.  E.g. the required
+interface/device parameter "-i" sets variable $DEV.
 
 Common functions
 ----------------
