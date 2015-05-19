@@ -1,12 +1,14 @@
 #!/bin/bash
 #
+# Script for max single flow performance
+#  - If correctly tuned[1], single CPU 10G wirespeed small pkts is possible[2]
+#
 # Using pktgen "burst" option (use -b $N)
 #  - To boost max performance
 #  - Avail since: kernel v3.18
 #   * commit 38b2cf2982dc73 ("net: pktgen: packet bursting via skb->xmit_more")
 #  - This avoids writing the HW tailptr on every driver xmit
 #  - The performance boost is impressive, see commit and blog [2]
-#  - If correctly tuned[1], single CPU 10G wirespeed small pkts is possible
 #
 # Notice: On purpose generates a single (UDP) flow towards target,
 #   reason behind this is to only overload/activate a single CPU on
