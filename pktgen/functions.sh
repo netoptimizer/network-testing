@@ -1,10 +1,11 @@
 #
 # Common functions used by pktgen scripts
+#  - Depending on bash 3 (or higher) syntax
 #
 # Author: Jesper Dangaaard Brouer
 # License: GPL
 
-if [ ! -d /proc/net/pktgen ]; then
+if [[ ! -d /proc/net/pktgen ]]; then
         modprobe pktgen
 fi
 
@@ -21,7 +22,7 @@ function warn() {
 }
 
 function info() {
-    if [ -n "$VERBOSE" ]; then
+    if [[ -n "$VERBOSE" ]]; then
 	echo "INFO : $@" >&2
     fi
 }
@@ -64,15 +65,15 @@ function proc_cmd() {
     # after shift, the remaining args are contained in $@
     shift
     local proc_ctrl=${PROC_DIR}/$proc_file
-    if [ ! -e "$proc_ctrl" ]; then
+    if [[ ! -e "$proc_ctrl" ]]; then
 	err 3 "proc file:$proc_ctrl does not exists (dev added to thread?)"
     else
-	if [ ! -w "$proc_ctrl" ]; then
+	if [[ ! -w "$proc_ctrl" ]]; then
 	    err 4 "proc file:$proc_ctrl not writable, not root?!"
 	fi
     fi
 
-    if [ "$DEBUG" == "yes" ]; then
+    if [[ "$DEBUG" == "yes" ]]; then
 	echo "cmd: $@ > $proc_ctrl"
     fi
     # Quoting of "$@" is important for space expansion
@@ -80,10 +81,10 @@ function proc_cmd() {
     local status=$?
 
     result=`cat $proc_ctrl | fgrep "Result: OK:"`
-    if [ "$result" = "" ]; then
+    if [[ "$result" == "" ]]; then
 	cat $proc_ctrl | fgrep Result: >&2
     fi
-    if [ $status -ne 0 ]; then
+    if (( $status != 0 )); then
 	err 5 "Write error($status) occured cmd: \"$@ > $proc_ctrl\""
     fi
 }
@@ -92,17 +93,17 @@ function proc_cmd() {
 function pgset() {
     local result
 
-    if [ "$DEBUG" == "yes" ]; then
+    if [[ "$DEBUG" == "yes" ]]; then
 	echo "cmd: $1 > $PGDEV"
     fi
     echo $1 > $PGDEV
     local status=$?
 
     result=`cat $PGDEV | fgrep "Result: OK:"`
-    if [ "$result" = "" ]; then
+    if [[ "$result" == "" ]]; then
          cat $PGDEV | fgrep Result:
     fi
-    if [ $status -ne 0 ]; then
+    if (( $status != 0 )); then
 	err 5 "Write error($status) occurred cmd: \"$1 > $PGDEV\""
     fi
 }
