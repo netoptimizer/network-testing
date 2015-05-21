@@ -76,9 +76,9 @@ function proc_cmd() {
     echo "$@" > "$proc_ctrl"
     local status=$?
 
-    result=`cat $proc_ctrl | fgrep "Result: OK:"`
+    result=$(grep "Result: OK:" $proc_ctrl)
     if [[ "$result" == "" ]]; then
-	cat $proc_ctrl | fgrep Result: >&2
+	grep "Result:" $proc_ctrl >&2
     fi
     if (( $status != 0 )); then
 	err 5 "Write error($status) occurred cmd: \"$@ > $proc_ctrl\""
