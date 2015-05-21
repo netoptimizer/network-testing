@@ -77,6 +77,7 @@ function proc_cmd() {
     local status=$?
 
     result=$(grep "Result: OK:" $proc_ctrl)
+    # Due to pgctrl, cannot use exit code $? from grep
     if [[ "$result" == "" ]]; then
 	grep "Result:" $proc_ctrl >&2
     fi
