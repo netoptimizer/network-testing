@@ -81,7 +81,7 @@ function proc_cmd() {
 	cat $proc_ctrl | fgrep Result: >&2
     fi
     if (( $status != 0 )); then
-	err 5 "Write error($status) occured cmd: \"$@ > $proc_ctrl\""
+	err 5 "Write error($status) occurred cmd: \"$@ > $proc_ctrl\""
     fi
 }
 
