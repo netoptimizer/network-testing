@@ -59,7 +59,7 @@ for ((thread = 0; thread < $THREADS; thread++)); do
 
     # Setup burst, for easy testing -b 0 disable bursting
     # (internally in pktgen default and minimum burst=1)
-    if [[ ${BURST} != 0 ]]; then
+    if [[ ${BURST} -ne 0 ]]; then
 	pg_set $dev "burst $BURST"
     else
 	info "$dev: Not using burst"
