@@ -29,11 +29,18 @@
 #include "common.h"
 #include "common_socket.h"
 
+#define RUN_SENDMSG   0x1
+#define RUN_SENDMMSG  0x2
+#define RUN_SENDTO    0x4
+#define RUN_ALL       (RUN_SENDMSG | RUN_SENDMMSG | RUN_SENDTO)
+
+
 static int usage(char *argv[])
 {
 	printf("-= ERROR: Parameter problems =-\n");
-	printf(" Usage: %s [-c count] [-p port] [-m payloadsize] [-4] [-6] [-v] IPADDR\n\n",
+	printf(" Usage: %s [-c count] [-p port] [-m payloadsize] [-4] [-6] [-v] [-t] [-u] [-U] IPADDR\n\n",
 	       argv[0]);
+	printf("     -t -u -U: run any combination of sendto (-t), sendmsg (-u), sendmmsg (-U). default: all tests\n");
 	return EXIT_FAIL_OPTION;
 }
 
@@ -290,19 +297,23 @@ int main(int argc, char *argv[])
 	int msg_sz = 18; /* 18 +14(eth)+8(UDP)+20(IP)+4(Eth-CRC) = 64 bytes */
 	uint16_t dest_port = 6666;
 	char *dest_ip;
+	int run_flag = 0;
 
 	/* Support for both IPv4 and IPv6 */
 	struct sockaddr_storage dest_addr; /* Can contain both sockaddr_in and sockaddr_in6 */
 	memset(&dest_addr, 0, sizeof(dest_addr));
 
 	/* Parse commands line args */
-	while ((c = getopt(argc, argv, "c:p:m:64v:")) != -1) {
+	while ((c = getopt(argc, argv, "c:p:m:64v:tuU")) != -1) {
 		if (c == 'c') count       = atoi(optarg);
 		if (c == 'p') dest_port   = atoi(optarg);
 		if (c == 'm') msg_sz      = atoi(optarg);
 		if (c == '4') addr_family = AF_INET;
 		if (c == '6') addr_family = AF_INET6;
 		if (c == 'v') verbose     = atoi(optarg);
+		if (c == 'u') run_flag   |= RUN_SENDMSG;
+		if (c == 'U') run_flag   |= RUN_SENDMMSG;
+		if (c == 't') run_flag   |= RUN_SENDTO;
 		if (c == '?') return usage(argv);
 	}
 	if (optind >= argc) {
@@ -312,6 +323,9 @@ int main(int argc, char *argv[])
 	dest_ip = argv[optind];
 	if (verbose > 0)
 		printf("Destination IP:%s port:%d\n", dest_ip, dest_port);
+
+	if (run_flag == 0)
+		run_flag = RUN_ALL;
 
 	/* Socket setup stuff */
 	sockfd = Socket(addr_family, SOCK_DGRAM, IPPROTO_IP);
@@ -324,14 +338,20 @@ int main(int argc, char *argv[])
 	 */
 	Connect(sockfd, (struct sockaddr *)&dest_addr, sockaddr_len(&dest_addr));
 
-	printf("\nPerformance of: sendto()\n");
-	time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendto);
+	if (run_flag & RUN_SENDTO) {
+		printf("\nPerformance of: sendto()\n");
+		time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendto);
+	}
 
-	printf("\nPerformance of: sendmsg()\n");
-	time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendmsg);
+	if (run_flag & RUN_SENDMSG) {
+		printf("\nPerformance of: sendmsg()\n");
+		time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendmsg);
+	}
 
-	printf("\nPerformance of: sendMmsg()\n");
-	time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendMmsg);
+	if (run_flag & RUN_SENDMMSG) {
+		printf("\nPerformance of: sendMmsg()\n");
+		time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendMmsg);
+	}
 
 	close(sockfd);
 	return 0;
