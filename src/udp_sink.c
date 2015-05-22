@@ -31,11 +31,19 @@
 #include "common.h"
 #include "common_socket.h"
 
+#define RUN_RECVMSG   0x1
+#define RUN_RECVMMSG  0x2
+#define RUN_RECVFROM  0x4
+#define RUN_READ      0x8
+#define RUN_ALL       (RUN_RECVMSG | RUN_RECVMMSG | RUN_RECVFROM | RUN_READ)
+
+
 static int usage(char *argv[])
 {
 	printf("-= ERROR: Parameter problems =-\n");
-	printf(" Usage: %s [-c count] [-l listen_port] [-4] [-6] [-v]\n\n",
+	printf(" Usage: %s [-c count] [-l listen_port] [-4] [-6] [-v] [-t] [-T] [-u] [-U]\n\n",
 	       argv[0]);
+	printf("     -t -T -u -U: run any combination of recvfrom (-t), read (-T), recvmsg (-u), recvmmsg (-U). default: all tests\n");
 	return EXIT_FAIL_OPTION;
 }
 
@@ -306,12 +314,13 @@ int main(int argc, char *argv[])
 	/* Default settings */
 	int addr_family = AF_INET; /* Default address family */
 	uint16_t listen_port = 6666;
+	int run_flag = 0;
 
 	/* Support for both IPv4 and IPv6 */
 	struct sockaddr_storage listen_addr; /* Can contain both sockaddr_in and sockaddr_in6 */
 
 	/* Parse commands line args */
-	while ((c = getopt(argc, argv, "c:r:l:64sv:")) != -1) {
+	while ((c = getopt(argc, argv, "c:r:l:64sv:tTuU")) != -1) {
 		if (c == 'c') count       = atoi(optarg);
 		if (c == 'r') repeat      = atoi(optarg);
 		if (c == 'l') listen_port = atoi(optarg);
@@ -319,11 +328,18 @@ int main(int argc, char *argv[])
 		if (c == '6') addr_family = AF_INET6;
 		if (c == 's') so_reuseport= 1;
 		if (c == 'v') verbose     = atoi(optarg);
+		if (c == 'u') run_flag   |= RUN_RECVMSG;
+		if (c == 'U') run_flag   |= RUN_RECVMMSG;
+		if (c == 't') run_flag   |= RUN_RECVFROM;
+		if (c == 'T') run_flag   |= RUN_READ;
 		if (c == '?') return usage(argv);
 	}
 
 	if (verbose > 0)
 		printf("Listen port %d\n", listen_port);
+
+	if (run_flag == 0)
+		run_flag = RUN_ALL;
 
 	/* Socket setup stuff */
 	sockfd = Socket(addr_family, SOCK_DGRAM, IPPROTO_IP);
@@ -353,17 +369,25 @@ int main(int argc, char *argv[])
 
 	Bind(sockfd, &listen_addr);
 
-	printf("\nPerformance of: recvMmsg() batch:32\n");
-	time_function(sockfd, count, repeat, 32, sink_with_recvMmsg);
+	if (run_flag & RUN_RECVMMSG) {
+		printf("\nPerformance of: recvMmsg() batch:32\n");
+		time_function(sockfd, count, repeat, 32, sink_with_recvMmsg);
+	}
 
-	printf("\nPerformance of: recvmsg()\n");
-	time_function(sockfd, count, repeat, 1, sink_with_recvmsg);
+	if (run_flag & RUN_RECVMSG) {
+		printf("\nPerformance of: recvmsg()\n");
+		time_function(sockfd, count, repeat, 1, sink_with_recvmsg);
+	}
 
-	printf("\nPerformance of: read()\n");
-	time_function(sockfd, count, repeat, 0, sink_with_read);
+	if (run_flag & RUN_READ) {
+		printf("\nPerformance of: read()\n");
+		time_function(sockfd, count, repeat, 0, sink_with_read);
+	}
 
-	printf("\nPerformance of: recvfrom()\n");
-	time_function(sockfd, count, repeat, 0, sink_with_recvfrom);
+	if (run_flag & RUN_RECVFROM) {
+		printf("\nPerformance of: recvfrom()\n");
+		time_function(sockfd, count, repeat, 0, sink_with_recvfrom);
+	}
 
 	close(sockfd);
 	return 0;
