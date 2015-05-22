@@ -32,7 +32,8 @@
 #define RUN_SENDMSG   0x1
 #define RUN_SENDMMSG  0x2
 #define RUN_SENDTO    0x4
-#define RUN_ALL       (RUN_SENDMSG | RUN_SENDMMSG | RUN_SENDTO)
+#define RUN_WRITE     0x8
+#define RUN_ALL       (RUN_SENDMSG | RUN_SENDMMSG | RUN_SENDTO | RUN_WRITE)
 
 
 static int usage(char *argv[])
@@ -40,7 +41,7 @@ static int usage(char *argv[])
 	printf("-= ERROR: Parameter problems =-\n");
 	printf(" Usage: %s [-c count] [-p port] [-m payloadsize] [-4] [-6] [-v] [-t] [-u] [-U] IPADDR\n\n",
 	       argv[0]);
-	printf("     -t -u -U: run any combination of sendto (-t), sendmsg (-u), sendmmsg (-U). default: all tests\n");
+	printf("     -t -T -u -U: run any combination of sendto (-t), write (-T), sendmsg (-u), sendmmsg (-U). default: all tests\n");
 	return EXIT_FAIL_OPTION;
 }
 
@@ -61,6 +62,31 @@ static int flood_with_sendto(int sockfd, struct sockaddr_storage *dest_addr,
 		if (res < 0) {
 			fprintf(stderr, "Managed to send %d packets\n", cnt);
 			perror("- sendto");
+			goto out;
+		}
+	}
+	res = cnt;
+
+out:
+	free(msg_buf);
+	return res;
+}
+
+static int flood_with_write(int sockfd, struct sockaddr_storage *dest_addr,
+			     int count, int msg_sz)
+{
+	char *msg_buf;
+	int cnt, res = 0;
+
+	/* Allocate payload buffer */
+	msg_buf = malloc_payload_buffer(msg_sz);
+
+	/* Flood loop */
+	for (cnt = 0; cnt < count; cnt++) {
+		res = write(sockfd, msg_buf, msg_sz);
+		if (res < 0) {
+			fprintf(stderr, "Managed to send %d packets\n", cnt);
+			perror("- write");
 			goto out;
 		}
 	}
@@ -314,6 +340,7 @@ int main(int argc, char *argv[])
 		if (c == 'u') run_flag   |= RUN_SENDMSG;
 		if (c == 'U') run_flag   |= RUN_SENDMMSG;
 		if (c == 't') run_flag   |= RUN_SENDTO;
+		if (c == 'T') run_flag   |= RUN_WRITE;
 		if (c == '?') return usage(argv);
 	}
 	if (optind >= argc) {
@@ -351,6 +378,11 @@ int main(int argc, char *argv[])
 	if (run_flag & RUN_SENDMMSG) {
 		printf("\nPerformance of: sendMmsg()\n");
 		time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendMmsg);
+	}
+
+	if (run_flag & RUN_WRITE) {
+		printf("\nPerformance of: write()\n");
+		time_function(sockfd, &dest_addr, count, msg_sz, flood_with_write);
 	}
 
 	close(sockfd);
