@@ -35,13 +35,45 @@
 #define RUN_WRITE     0x8
 #define RUN_ALL       (RUN_SENDMSG | RUN_SENDMMSG | RUN_SENDTO | RUN_WRITE)
 
+static const struct option long_options[] = {
+	{"help",	no_argument,		NULL, 'h' },
+	{"ipv4",	no_argument,		NULL, '4' },
+	{"ipv6",	no_argument,		NULL, '6' },
+	/* keep these grouped together */
+	{"sendmsg",	no_argument,		NULL, 'u' },
+	{"sendmmsg",	no_argument,		NULL, 'U' },
+	{"sendto",	no_argument,		NULL, 't' },
+	{"write",	no_argument,		NULL, 'T' },
+	{"batch",	required_argument,	NULL, 'b' },
+	{"count",	required_argument,	NULL, 'c' },
+	{"port",	required_argument,	NULL, 'p' },
+	{"payload",	required_argument,	NULL, 'm' },
+	{"verbose",	optional_argument,	NULL, 'v' },
+	{0, 0, NULL,  0 }
+};
 
 static int usage(char *argv[])
 {
+	int i;
+
 	printf("-= ERROR: Parameter problems =-\n");
-	printf(" Usage: %s [-c count] [-p port] [-m payloadsize] [-4] [-6] [-v] [-t] [-u] [-U] IPADDR\n\n",
+	printf(" Usage: %s (options-see-below) IPADDR\n",
 	       argv[0]);
-	printf("     -t -T -u -U: run any combination of sendto (-t), write (-T), sendmsg (-u), sendmmsg (-U). default: all tests\n");
+	printf(" Listing options:\n");
+	for (i = 0; long_options[i].name != 0; i++) {
+		printf(" --%s", long_options[i].name);
+		if (long_options[i].flag != NULL)
+			printf("\t\t flag (internal value:%d)",
+			       *long_options[i].flag);
+		else
+			printf("\t\t short-option: -%c",
+			       long_options[i].val);
+		printf("\n");
+	}
+	printf("     -u -U -t -T: run any combination of sendmsg/sendmmsg/sendto/write\n");
+	printf("         default: all tests\n");
+	printf("\n");
+
 	return EXIT_FAIL_OPTION;
 }
 
@@ -322,25 +354,27 @@ int main(int argc, char *argv[])
 	char *dest_ip;
 	int run_flag = 0;
 	int batch = 32;
+	int longindex = 0;
 
 	/* Support for both IPv4 and IPv6 */
 	struct sockaddr_storage dest_addr; /* Can contain both sockaddr_in and sockaddr_in6 */
 	memset(&dest_addr, 0, sizeof(dest_addr));
 
 	/* Parse commands line args */
-	while ((c = getopt(argc, argv, "c:p:m:64v:tTuUb:")) != -1) {
+	while ((c = getopt_long(argc, argv, "hc:p:m:64v:tTuUb:",
+				long_options, &longindex)) != -1) {
 		if (c == 'c') count       = atoi(optarg);
 		if (c == 'p') dest_port   = atoi(optarg);
 		if (c == 'm') msg_sz      = atoi(optarg);
 		if (c == 'b') batch       = atoi(optarg);
 		if (c == '4') addr_family = AF_INET;
 		if (c == '6') addr_family = AF_INET6;
-		if (c == 'v') verbose     = atoi(optarg);
+		if (c == 'v') verbose     = optarg ? atoi(optarg) : 1;
 		if (c == 'u') run_flag   |= RUN_SENDMSG;
 		if (c == 'U') run_flag   |= RUN_SENDMMSG;
 		if (c == 't') run_flag   |= RUN_SENDTO;
 		if (c == 'T') run_flag   |= RUN_WRITE;
-		if (c == '?') return usage(argv);
+		if (c == 'h' || c == '?') return usage(argv);
 	}
 	if (optind >= argc) {
 		fprintf(stderr, "Expected dest IP-address (IPv6 or IPv4) argument after options\n");
