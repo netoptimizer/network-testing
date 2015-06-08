@@ -320,14 +320,16 @@ int main(int argc, char *argv[])
 	int addr_family = AF_INET; /* Default address family */
 	uint16_t listen_port = 6666;
 	int run_flag = 0;
+	int batch = 32;
 
 	/* Support for both IPv4 and IPv6 */
 	struct sockaddr_storage listen_addr; /* Can contain both sockaddr_in and sockaddr_in6 */
 
 	/* Parse commands line args */
-	while ((c = getopt(argc, argv, "c:r:l:64sv:tTuU")) != -1) {
+	while ((c = getopt(argc, argv, "c:r:l:64sv:tTuUb:")) != -1) {
 		if (c == 'c') count       = atoi(optarg);
 		if (c == 'r') repeat      = atoi(optarg);
+		if (c == 'b') batch       = atoi(optarg);
 		if (c == 'l') listen_port = atoi(optarg);
 		if (c == '4') addr_family = AF_INET;
 		if (c == '6') addr_family = AF_INET6;
@@ -375,8 +377,8 @@ int main(int argc, char *argv[])
 	Bind(sockfd, &listen_addr);
 
 	if (run_flag & RUN_RECVMMSG) {
-		print_header("recvMmsg", 32);
-		time_function(sockfd, count, repeat, 32, sink_with_recvMmsg);
+		print_header("recvMmsg", batch);
+		time_function(sockfd, count, repeat, batch, sink_with_recvMmsg);
 	}
 
 	if (run_flag & RUN_RECVMSG) {

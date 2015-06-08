@@ -46,7 +46,7 @@ static int usage(char *argv[])
 }
 
 static int flood_with_sendto(int sockfd, struct sockaddr_storage *dest_addr,
-			     int count, int msg_sz)
+			     int count, int msg_sz, int batch)
 {
 	char *msg_buf;
 	int cnt, res = 0;
@@ -73,7 +73,7 @@ out:
 }
 
 static int flood_with_write(int sockfd, struct sockaddr_storage *dest_addr,
-			     int count, int msg_sz)
+			    int count, int msg_sz, int batch)
 {
 	char *msg_buf;
 	int cnt, res = 0;
@@ -131,7 +131,7 @@ out:
 */
 
 static int flood_with_sendmsg(int sockfd, struct sockaddr_storage *dest_addr,
-			      int count, int msg_sz)
+			      int count, int msg_sz, int batch)
 {
 	char          *msg_buf;  /* payload data */
 	struct msghdr *msg_hdr;  /* struct for setting up transmit */
@@ -203,12 +203,11 @@ out:
  * - sending multible packet in one syscall
  */
 static int flood_with_sendMmsg(int sockfd, struct sockaddr_storage *dest_addr,
-			       int count, int msg_sz)
+			       int count, int msg_sz, int batch)
 {
 	char          *msg_buf;  /* payload data */
 	struct iovec  *msg_iov;  /* io-vector: array of pointers to payload data */
 	unsigned int  iov_array_elems = 1; /*adjust to test scattered payload */
-	unsigned int  batch = 32;
 	int i;
 
 	count = count / batch;
@@ -276,9 +275,9 @@ out:
 
 
 static void time_function(int sockfd, struct sockaddr_storage *dest_addr,
-			  int count, int msg_sz,
+			  int count, int msg_sz, int batch,
 	int (*func)(int sockfd, struct sockaddr_storage *dest_addr,
-		    int count, int msg_sz))
+		    int count, int msg_sz, int batch))
 {
 	uint64_t tsc_begin,  tsc_end,  tsc_interval;
 	uint64_t time_begin, time_end, time_interval;
@@ -288,7 +287,7 @@ static void time_function(int sockfd, struct sockaddr_storage *dest_addr,
 
 	time_begin = gettime();
 	tsc_begin  = rdtsc();
-	cnt_send = func(sockfd, dest_addr, count, msg_sz);
+	cnt_send = func(sockfd, dest_addr, count, msg_sz, batch);
 	//cnt_send = flood_with_sendmsg(sockfd, dest_addr, count, msg_sz);
 	//cnt_send = flood_with_sendto(sockfd, dest_addr, count, msg_sz);
 	tsc_end  = rdtsc();
@@ -322,16 +321,18 @@ int main(int argc, char *argv[])
 	uint16_t dest_port = 6666;
 	char *dest_ip;
 	int run_flag = 0;
+	int batch = 32;
 
 	/* Support for both IPv4 and IPv6 */
 	struct sockaddr_storage dest_addr; /* Can contain both sockaddr_in and sockaddr_in6 */
 	memset(&dest_addr, 0, sizeof(dest_addr));
 
 	/* Parse commands line args */
-	while ((c = getopt(argc, argv, "c:p:m:64v:tuU")) != -1) {
+	while ((c = getopt(argc, argv, "c:p:m:64v:tTuUb:")) != -1) {
 		if (c == 'c') count       = atoi(optarg);
 		if (c == 'p') dest_port   = atoi(optarg);
 		if (c == 'm') msg_sz      = atoi(optarg);
+		if (c == 'b') batch       = atoi(optarg);
 		if (c == '4') addr_family = AF_INET;
 		if (c == '6') addr_family = AF_INET6;
 		if (c == 'v') verbose     = atoi(optarg);
@@ -367,22 +368,22 @@ int main(int argc, char *argv[])
 		printf("             \tns/pkt\tpps\t\ttsc_int\n");
 	if (run_flag & RUN_SENDTO) {
 		print_header("sendto", 0);
-		time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendto);
+		time_function(sockfd, &dest_addr, count, msg_sz, 0, flood_with_sendto);
 	}
 
 	if (run_flag & RUN_SENDMSG) {
 		print_header("sendmsg", 0);
-		time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendmsg);
+		time_function(sockfd, &dest_addr, count, msg_sz, 0, flood_with_sendmsg);
 	}
 
 	if (run_flag & RUN_SENDMMSG) {
-		print_header("sendMmsg", 32);
-		time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendMmsg);
+		print_header("sendMmsg", batch);
+		time_function(sockfd, &dest_addr, count, msg_sz, batch, flood_with_sendMmsg);
 	}
 
 	if (run_flag & RUN_WRITE) {
 		print_header("write", 0);
-		time_function(sockfd, &dest_addr, count, msg_sz, flood_with_write);
+		time_function(sockfd, &dest_addr, count, msg_sz, 0, flood_with_write);
 	}
 
 	close(sockfd);
