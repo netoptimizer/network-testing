@@ -103,3 +103,28 @@ int time_func(int loops,
 
 	return 0;
 }
+
+void print_result(uint64_t tsc_cycles, double ns_per_pkt, double pps,
+		  double timesec, int cnt_send, uint64_t tsc_interval)
+{
+	if (verbose) {
+		printf(" - Per packet: %lu cycles(tsc) %.2f ns, %.2f pps (time:%.2f sec)\n"
+		       "   (packet count:%d tsc_interval:%lu)\n",
+		       tsc_cycles, ns_per_pkt, pps, timesec,
+		       cnt_send, tsc_interval);
+	} else {
+		printf("%.2f\t%.2f\t%lu\n", ns_per_pkt, pps, tsc_interval);
+	}
+}
+
+void print_header(const char *fct, int batch)
+{
+	if (verbose && batch)
+		printf("\nPerformance of: %s, batch size: %d\n", fct, batch);
+	else if (verbose)
+		printf("\nPerformance of: %s\n", fct);
+	else if (batch)
+		printf("%s/%-4d\t", fct, batch);
+	else
+		printf("%-10s\t", fct);
+}

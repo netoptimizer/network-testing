@@ -284,7 +284,7 @@ static void time_function(int sockfd, struct sockaddr_storage *dest_addr,
 	uint64_t time_begin, time_end, time_interval;
 	int cnt_send;
 	double pps, ns_per_pkt, timesec;
-	int tsc_cycles;
+	uint64_t tsc_cycles;
 
 	time_begin = gettime();
 	tsc_begin  = rdtsc();
@@ -307,10 +307,8 @@ static void time_function(int sockfd, struct sockaddr_storage *dest_addr,
 	tsc_cycles = tsc_interval / cnt_send;
 	ns_per_pkt = ((double)time_interval / cnt_send);
 	timesec    = ((double)time_interval / NANOSEC_PER_SEC);
-	printf(" - Per packet: %d cycles(tsc) %.2f ns, %.2f pps (time:%.2f sec)\n"
-	       "   (packet count:%d tsc_interval:%lu)\n",
-	       tsc_cycles, ns_per_pkt, pps, timesec,
-	       cnt_send, tsc_interval);
+	print_result(tsc_cycles, ns_per_pkt, pps, timesec,
+		     cnt_send, tsc_interval);
 }
 
 int main(int argc, char *argv[])
@@ -365,23 +363,25 @@ int main(int argc, char *argv[])
 	 */
 	Connect(sockfd, (struct sockaddr *)&dest_addr, sockaddr_len(&dest_addr));
 
+	if (!verbose)
+		printf("             \tns/pkt\tpps\t\ttsc_int\n");
 	if (run_flag & RUN_SENDTO) {
-		printf("\nPerformance of: sendto()\n");
+		print_header("sendto", 0);
 		time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendto);
 	}
 
 	if (run_flag & RUN_SENDMSG) {
-		printf("\nPerformance of: sendmsg()\n");
+		print_header("sendmsg", 0);
 		time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendmsg);
 	}
 
 	if (run_flag & RUN_SENDMMSG) {
-		printf("\nPerformance of: sendMmsg()\n");
+		print_header("sendMmsg", 32);
 		time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendMmsg);
 	}
 
 	if (run_flag & RUN_WRITE) {
-		printf("\nPerformance of: write()\n");
+		print_header("write", 0);
 		time_function(sockfd, &dest_addr, count, msg_sz, flood_with_write);
 	}
 

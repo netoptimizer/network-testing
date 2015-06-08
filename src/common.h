@@ -22,6 +22,9 @@ inline uint64_t rdtsc()
 unsigned long long gettime(void);
 
 char *malloc_payload_buffer(int msg_sz);
+void print_result(uint64_t tsc_cycles, double ns_per_pkt, double pps,
+		  double timesec, int cnt_send, uint64_t tsc_interval);
+void print_header(const char *fct, int batch);
 
 /* Using __builtin_constant_p(x) to ignore cases where the return
  * value is always the same.

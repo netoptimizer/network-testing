@@ -263,7 +263,8 @@ static void time_function(int sockfd, int count, int repeat, int batch,
 	int res;
 
 	//WAIT on first packet of flood
-	printf(" - Waiting on first packet (of expected flood)\n");
+	if (verbose)
+		printf(" - Waiting on first packet (of expected flood)\n");
 	res = read(sockfd, buffer, TMPMAX);
 	if (res < 0) {
 		fprintf(stderr, "ERROR: %s() failed (%d) errno(%d) ",
@@ -272,11 +273,17 @@ static void time_function(int sockfd, int count, int repeat, int batch,
 		close(sockfd);
 		exit(EXIT_FAIL_SOCK);
 	}
-	printf("  * Got first packet (starting timing)\n");
+
+	if (verbose)
+		printf("  * Got first packet (starting timing)\n");
 
 	for (j = 0; j < repeat; j++) {
-		printf(" Test run: %d (expecting to receive %d pkts)\n",
-		       j, count);
+		if (verbose) {
+			printf(" Test run: %d (expecting to receive %d pkts)\n",
+			       j, count);
+		} else {
+			printf("run: %d %d\t", j, count);
+		}
 
 		time_begin = gettime();
 		tsc_begin  = rdtsc();
@@ -297,10 +304,8 @@ static void time_function(int sockfd, int count, int repeat, int batch,
 		tsc_cycles = tsc_interval / cnt_recv;
 		ns_per_pkt = ((double)time_interval / cnt_recv);
 		timesec    = ((double)time_interval / NANOSEC_PER_SEC);
-		printf(" - Per packet: %lu cycles(tsc) %.2f ns, %.2f pps (time:%.2f sec)\n"
-		       "   (packet count:%d tsc_interval:%lu)\n",
-		       tsc_cycles, ns_per_pkt, pps, timesec,
-		       cnt_recv, tsc_interval);
+		print_result(tsc_cycles, ns_per_pkt, pps, timesec,
+			     cnt_recv, tsc_interval);
 	}
 }
 
@@ -370,22 +375,22 @@ int main(int argc, char *argv[])
 	Bind(sockfd, &listen_addr);
 
 	if (run_flag & RUN_RECVMMSG) {
-		printf("\nPerformance of: recvMmsg() batch:32\n");
+		print_header("recvMmsg", 32);
 		time_function(sockfd, count, repeat, 32, sink_with_recvMmsg);
 	}
 
 	if (run_flag & RUN_RECVMSG) {
-		printf("\nPerformance of: recvmsg()\n");
+		print_header("recvmsg", 0);
 		time_function(sockfd, count, repeat, 1, sink_with_recvmsg);
 	}
 
 	if (run_flag & RUN_READ) {
-		printf("\nPerformance of: read()\n");
+		print_header("read", 0);
 		time_function(sockfd, count, repeat, 0, sink_with_read);
 	}
 
 	if (run_flag & RUN_RECVFROM) {
-		printf("\nPerformance of: recvfrom()\n");
+		print_header("recvfrom", 0);
 		time_function(sockfd, count, repeat, 0, sink_with_recvfrom);
 	}
 
