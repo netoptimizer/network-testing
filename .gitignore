@@ -1,0 +1,19 @@
+*.o
+*.a
+*.so
+*~
+\#*#
+.#*
+
+# cscope
+cscope.*
+ncscope.*
+TAGS
+
+*.diff
+*.patch
+*.orig
+*.rej
+
+core.*
+vgcore.*
