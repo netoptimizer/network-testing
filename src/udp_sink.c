@@ -31,11 +31,53 @@
 #include "common.h"
 #include "common_socket.h"
 
+#define RUN_RECVMSG   0x1
+#define RUN_RECVMMSG  0x2
+#define RUN_RECVFROM  0x4
+#define RUN_READ      0x8
+#define RUN_ALL       (RUN_RECVMSG | RUN_RECVMMSG | RUN_RECVFROM | RUN_READ)
+
+static const struct option long_options[] = {
+	{"help",	no_argument,		NULL, 'h' },
+	{"ipv4",	no_argument,		NULL, '4' },
+	{"ipv6",	no_argument,		NULL, '6' },
+	{"reuse-port",	no_argument,		NULL, 's' },
+	/* keep these grouped together */
+	{"recvmsg",	no_argument,		NULL, 'u' },
+	{"recvmmsg",	no_argument,		NULL, 'U' },
+	{"recvfrom",	no_argument,		NULL, 't' },
+	{"read",	no_argument,		NULL, 'T' },
+	{"batch",	required_argument,	NULL, 'b' },
+	{"count",	required_argument,	NULL, 'c' },
+	{"port",	required_argument,	NULL, 'l' },
+	{"payload",	required_argument,	NULL, 'm' },
+	{"repeat",	required_argument,	NULL, 'r' },
+	{"verbose",	optional_argument,	NULL, 'v' },
+	{0, 0, NULL,  0 }
+};
+
 static int usage(char *argv[])
 {
+	int i;
+
 	printf("-= ERROR: Parameter problems =-\n");
-	printf(" Usage: %s [-c count] [-l listen_port] [-4] [-6] [-v]\n\n",
+	printf(" Usage: %s (options-see-below)\n",
 	       argv[0]);
+	printf(" Listing options:\n");
+	for (i = 0; long_options[i].name != 0; i++) {
+		printf(" --%s", long_options[i].name);
+		if (long_options[i].flag != NULL)
+			printf("\t\t flag (internal value:%d)",
+			       *long_options[i].flag);
+		else
+			printf("\t\t short-option: -%c",
+			       long_options[i].val);
+		printf("\n");
+	}
+	printf("     -u -U -t -T: run any combination of recvmsg/recvmmsg/recvfrom/read\n");
+	printf("         default: all tests\n");
+	printf("\n");
+
 	return EXIT_FAIL_OPTION;
 }
 
@@ -255,7 +297,8 @@ static void time_function(int sockfd, int count, int repeat, int batch,
 	int res;
 
 	//WAIT on first packet of flood
-	printf(" - Waiting on first packet (of expected flood)\n");
+	if (verbose)
+		printf(" - Waiting on first packet (of expected flood)\n");
 	res = read(sockfd, buffer, TMPMAX);
 	if (res < 0) {
 		fprintf(stderr, "ERROR: %s() failed (%d) errno(%d) ",
@@ -264,11 +307,17 @@ static void time_function(int sockfd, int count, int repeat, int batch,
 		close(sockfd);
 		exit(EXIT_FAIL_SOCK);
 	}
-	printf("  * Got first packet (starting timing)\n");
+
+	if (verbose)
+		printf("  * Got first packet (starting timing)\n");
 
 	for (j = 0; j < repeat; j++) {
-		printf(" Test run: %d (expecting to receive %d pkts)\n",
-		       j, count);
+		if (verbose) {
+			printf(" Test run: %d (expecting to receive %d pkts)\n",
+			       j, count);
+		} else {
+			printf("run: %d %d\t", j, count);
+		}
 
 		time_begin = gettime();
 		tsc_begin  = rdtsc();
@@ -289,10 +338,8 @@ static void time_function(int sockfd, int count, int repeat, int batch,
 		tsc_cycles = tsc_interval / cnt_recv;
 		ns_per_pkt = ((double)time_interval / cnt_recv);
 		timesec    = ((double)time_interval / NANOSEC_PER_SEC);
-		printf(" - Per packet: %lu cycles(tsc) %.2f ns, %.2f pps (time:%.2f sec)\n"
-		       "   (packet count:%d tsc_interval:%lu)\n",
-		       tsc_cycles, ns_per_pkt, pps, timesec,
-		       cnt_recv, tsc_interval);
+		print_result(tsc_cycles, ns_per_pkt, pps, timesec,
+			     cnt_recv, tsc_interval);
 	}
 }
 
@@ -306,24 +353,36 @@ int main(int argc, char *argv[])
 	/* Default settings */
 	int addr_family = AF_INET; /* Default address family */
 	uint16_t listen_port = 6666;
+	int run_flag = 0;
+	int batch = 32;
+	int longindex = 0;
 
 	/* Support for both IPv4 and IPv6 */
 	struct sockaddr_storage listen_addr; /* Can contain both sockaddr_in and sockaddr_in6 */
 
 	/* Parse commands line args */
-	while ((c = getopt(argc, argv, "c:r:l:64sv:")) != -1) {
+	while ((c = getopt_long(argc, argv, "hc:r:l:64sv:tTuUb:",
+				long_options, &longindex)) != -1) {
 		if (c == 'c') count       = atoi(optarg);
 		if (c == 'r') repeat      = atoi(optarg);
+		if (c == 'b') batch       = atoi(optarg);
 		if (c == 'l') listen_port = atoi(optarg);
 		if (c == '4') addr_family = AF_INET;
 		if (c == '6') addr_family = AF_INET6;
 		if (c == 's') so_reuseport= 1;
-		if (c == 'v') verbose     = atoi(optarg);
-		if (c == '?') return usage(argv);
+		if (c == 'v') verbose     = optarg ? atoi(optarg) : 1;
+		if (c == 'u') run_flag   |= RUN_RECVMSG;
+		if (c == 'U') run_flag   |= RUN_RECVMMSG;
+		if (c == 't') run_flag   |= RUN_RECVFROM;
+		if (c == 'T') run_flag   |= RUN_READ;
+		if (c == 'h' || c == '?') return usage(argv);
 	}
 
 	if (verbose > 0)
 		printf("Listen port %d\n", listen_port);
+
+	if (run_flag == 0)
+		run_flag = RUN_ALL;
 
 	/* Socket setup stuff */
 	sockfd = Socket(addr_family, SOCK_DGRAM, IPPROTO_IP);
@@ -353,17 +412,25 @@ int main(int argc, char *argv[])
 
 	Bind(sockfd, &listen_addr);
 
-	printf("\nPerformance of: recvMmsg() batch:32\n");
-	time_function(sockfd, count, repeat, 32, sink_with_recvMmsg);
+	if (run_flag & RUN_RECVMMSG) {
+		print_header("recvMmsg", batch);
+		time_function(sockfd, count, repeat, batch, sink_with_recvMmsg);
+	}
 
-	printf("\nPerformance of: recvmsg()\n");
-	time_function(sockfd, count, repeat, 1, sink_with_recvmsg);
+	if (run_flag & RUN_RECVMSG) {
+		print_header("recvmsg", 0);
+		time_function(sockfd, count, repeat, 1, sink_with_recvmsg);
+	}
 
-	printf("\nPerformance of: read()\n");
-	time_function(sockfd, count, repeat, 0, sink_with_read);
+	if (run_flag & RUN_READ) {
+		print_header("read", 0);
+		time_function(sockfd, count, repeat, 0, sink_with_read);
+	}
 
-	printf("\nPerformance of: recvfrom()\n");
-	time_function(sockfd, count, repeat, 0, sink_with_recvfrom);
+	if (run_flag & RUN_RECVFROM) {
+		print_header("recvfrom", 0);
+		time_function(sockfd, count, repeat, 0, sink_with_recvfrom);
+	}
 
 	close(sockfd);
 	return 0;

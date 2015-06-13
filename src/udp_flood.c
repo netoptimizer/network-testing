@@ -29,16 +29,56 @@
 #include "common.h"
 #include "common_socket.h"
 
+#define RUN_SENDMSG   0x1
+#define RUN_SENDMMSG  0x2
+#define RUN_SENDTO    0x4
+#define RUN_WRITE     0x8
+#define RUN_ALL       (RUN_SENDMSG | RUN_SENDMMSG | RUN_SENDTO | RUN_WRITE)
+
+static const struct option long_options[] = {
+	{"help",	no_argument,		NULL, 'h' },
+	{"ipv4",	no_argument,		NULL, '4' },
+	{"ipv6",	no_argument,		NULL, '6' },
+	/* keep these grouped together */
+	{"sendmsg",	no_argument,		NULL, 'u' },
+	{"sendmmsg",	no_argument,		NULL, 'U' },
+	{"sendto",	no_argument,		NULL, 't' },
+	{"write",	no_argument,		NULL, 'T' },
+	{"batch",	required_argument,	NULL, 'b' },
+	{"count",	required_argument,	NULL, 'c' },
+	{"port",	required_argument,	NULL, 'p' },
+	{"payload",	required_argument,	NULL, 'm' },
+	{"verbose",	optional_argument,	NULL, 'v' },
+	{0, 0, NULL,  0 }
+};
+
 static int usage(char *argv[])
 {
+	int i;
+
 	printf("-= ERROR: Parameter problems =-\n");
-	printf(" Usage: %s [-c count] [-p port] [-m payloadsize] [-4] [-6] [-v] IPADDR\n\n",
+	printf(" Usage: %s (options-see-below) IPADDR\n",
 	       argv[0]);
+	printf(" Listing options:\n");
+	for (i = 0; long_options[i].name != 0; i++) {
+		printf(" --%s", long_options[i].name);
+		if (long_options[i].flag != NULL)
+			printf("\t\t flag (internal value:%d)",
+			       *long_options[i].flag);
+		else
+			printf("\t\t short-option: -%c",
+			       long_options[i].val);
+		printf("\n");
+	}
+	printf("     -u -U -t -T: run any combination of sendmsg/sendmmsg/sendto/write\n");
+	printf("         default: all tests\n");
+	printf("\n");
+
 	return EXIT_FAIL_OPTION;
 }
 
 static int flood_with_sendto(int sockfd, struct sockaddr_storage *dest_addr,
-			     int count, int msg_sz)
+			     int count, int msg_sz, int batch)
 {
 	char *msg_buf;
 	int cnt, res = 0;
@@ -54,6 +94,31 @@ static int flood_with_sendto(int sockfd, struct sockaddr_storage *dest_addr,
 		if (res < 0) {
 			fprintf(stderr, "Managed to send %d packets\n", cnt);
 			perror("- sendto");
+			goto out;
+		}
+	}
+	res = cnt;
+
+out:
+	free(msg_buf);
+	return res;
+}
+
+static int flood_with_write(int sockfd, struct sockaddr_storage *dest_addr,
+			    int count, int msg_sz, int batch)
+{
+	char *msg_buf;
+	int cnt, res = 0;
+
+	/* Allocate payload buffer */
+	msg_buf = malloc_payload_buffer(msg_sz);
+
+	/* Flood loop */
+	for (cnt = 0; cnt < count; cnt++) {
+		res = write(sockfd, msg_buf, msg_sz);
+		if (res < 0) {
+			fprintf(stderr, "Managed to send %d packets\n", cnt);
+			perror("- write");
 			goto out;
 		}
 	}
@@ -98,7 +163,7 @@ out:
 */
 
 static int flood_with_sendmsg(int sockfd, struct sockaddr_storage *dest_addr,
-			      int count, int msg_sz)
+			      int count, int msg_sz, int batch)
 {
 	char          *msg_buf;  /* payload data */
 	struct msghdr *msg_hdr;  /* struct for setting up transmit */
@@ -170,12 +235,11 @@ out:
  * - sending multible packet in one syscall
  */
 static int flood_with_sendMmsg(int sockfd, struct sockaddr_storage *dest_addr,
-			       int count, int msg_sz)
+			       int count, int msg_sz, int batch)
 {
 	char          *msg_buf;  /* payload data */
 	struct iovec  *msg_iov;  /* io-vector: array of pointers to payload data */
 	unsigned int  iov_array_elems = 1; /*adjust to test scattered payload */
-	unsigned int  batch = 32;
 	int i;
 
 	count = count / batch;
@@ -243,19 +307,19 @@ out:
 
 
 static void time_function(int sockfd, struct sockaddr_storage *dest_addr,
-			  int count, int msg_sz,
+			  int count, int msg_sz, int batch,
 	int (*func)(int sockfd, struct sockaddr_storage *dest_addr,
-		    int count, int msg_sz))
+		    int count, int msg_sz, int batch))
 {
 	uint64_t tsc_begin,  tsc_end,  tsc_interval;
 	uint64_t time_begin, time_end, time_interval;
 	int cnt_send;
 	double pps, ns_per_pkt, timesec;
-	int tsc_cycles;
+	uint64_t tsc_cycles;
 
 	time_begin = gettime();
 	tsc_begin  = rdtsc();
-	cnt_send = func(sockfd, dest_addr, count, msg_sz);
+	cnt_send = func(sockfd, dest_addr, count, msg_sz, batch);
 	//cnt_send = flood_with_sendmsg(sockfd, dest_addr, count, msg_sz);
 	//cnt_send = flood_with_sendto(sockfd, dest_addr, count, msg_sz);
 	tsc_end  = rdtsc();
@@ -274,10 +338,8 @@ static void time_function(int sockfd, struct sockaddr_storage *dest_addr,
 	tsc_cycles = tsc_interval / cnt_send;
 	ns_per_pkt = ((double)time_interval / cnt_send);
 	timesec    = ((double)time_interval / NANOSEC_PER_SEC);
-	printf(" - Per packet: %d cycles(tsc) %.2f ns, %.2f pps (time:%.2f sec)\n"
-	       "   (packet count:%d tsc_interval:%lu)\n",
-	       tsc_cycles, ns_per_pkt, pps, timesec,
-	       cnt_send, tsc_interval);
+	print_result(tsc_cycles, ns_per_pkt, pps, timesec,
+		     cnt_send, tsc_interval);
 }
 
 int main(int argc, char *argv[])
@@ -290,20 +352,29 @@ int main(int argc, char *argv[])
 	int msg_sz = 18; /* 18 +14(eth)+8(UDP)+20(IP)+4(Eth-CRC) = 64 bytes */
 	uint16_t dest_port = 6666;
 	char *dest_ip;
+	int run_flag = 0;
+	int batch = 32;
+	int longindex = 0;
 
 	/* Support for both IPv4 and IPv6 */
 	struct sockaddr_storage dest_addr; /* Can contain both sockaddr_in and sockaddr_in6 */
 	memset(&dest_addr, 0, sizeof(dest_addr));
 
 	/* Parse commands line args */
-	while ((c = getopt(argc, argv, "c:p:m:64v:")) != -1) {
+	while ((c = getopt_long(argc, argv, "hc:p:m:64v:tTuUb:",
+				long_options, &longindex)) != -1) {
 		if (c == 'c') count       = atoi(optarg);
 		if (c == 'p') dest_port   = atoi(optarg);
 		if (c == 'm') msg_sz      = atoi(optarg);
+		if (c == 'b') batch       = atoi(optarg);
 		if (c == '4') addr_family = AF_INET;
 		if (c == '6') addr_family = AF_INET6;
-		if (c == 'v') verbose     = atoi(optarg);
-		if (c == '?') return usage(argv);
+		if (c == 'v') verbose     = optarg ? atoi(optarg) : 1;
+		if (c == 'u') run_flag   |= RUN_SENDMSG;
+		if (c == 'U') run_flag   |= RUN_SENDMMSG;
+		if (c == 't') run_flag   |= RUN_SENDTO;
+		if (c == 'T') run_flag   |= RUN_WRITE;
+		if (c == 'h' || c == '?') return usage(argv);
 	}
 	if (optind >= argc) {
 		fprintf(stderr, "Expected dest IP-address (IPv6 or IPv4) argument after options\n");
@@ -312,6 +383,9 @@ int main(int argc, char *argv[])
 	dest_ip = argv[optind];
 	if (verbose > 0)
 		printf("Destination IP:%s port:%d\n", dest_ip, dest_port);
+
+	if (run_flag == 0)
+		run_flag = RUN_ALL;
 
 	/* Socket setup stuff */
 	sockfd = Socket(addr_family, SOCK_DGRAM, IPPROTO_IP);
@@ -324,14 +398,27 @@ int main(int argc, char *argv[])
 	 */
 	Connect(sockfd, (struct sockaddr *)&dest_addr, sockaddr_len(&dest_addr));
 
-	printf("\nPerformance of: sendto()\n");
-	time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendto);
+	if (!verbose)
+		printf("             \tns/pkt\tpps\t\ttsc_int\n");
+	if (run_flag & RUN_SENDTO) {
+		print_header("sendto", 0);
+		time_function(sockfd, &dest_addr, count, msg_sz, 0, flood_with_sendto);
+	}
 
-	printf("\nPerformance of: sendmsg()\n");
-	time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendmsg);
+	if (run_flag & RUN_SENDMSG) {
+		print_header("sendmsg", 0);
+		time_function(sockfd, &dest_addr, count, msg_sz, 0, flood_with_sendmsg);
+	}
 
-	printf("\nPerformance of: sendMmsg()\n");
-	time_function(sockfd, &dest_addr, count, msg_sz, flood_with_sendMmsg);
+	if (run_flag & RUN_SENDMMSG) {
+		print_header("sendMmsg", batch);
+		time_function(sockfd, &dest_addr, count, msg_sz, batch, flood_with_sendMmsg);
+	}
+
+	if (run_flag & RUN_WRITE) {
+		print_header("write", 0);
+		time_function(sockfd, &dest_addr, count, msg_sz, 0, flood_with_write);
+	}
 
 	close(sockfd);
 	return 0;

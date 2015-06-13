@@ -38,7 +38,7 @@
 static int so_reuseport = 1;
 static int write_something = 0;
 
-static struct option long_options[] = {
+static const struct option long_options[] = {
 	{"ipv4",	no_argument,		NULL, '4' },
 	{"ipv6",	no_argument,		NULL, '6' },
 	{"listen-port",	required_argument,	NULL, 'l' },
@@ -47,7 +47,7 @@ static struct option long_options[] = {
 	{"quiet",	no_argument,		&verbose, 0 },
 	{"reuseport",	no_argument,		&so_reuseport, 1 },
 	{"no-reuseport",no_argument,		&so_reuseport, 0 },
-	{"write-back", 	no_argument,		&write_something, 1 },
+	{"write-back",	no_argument,		&write_something, 1 },
 	{0, 0, NULL,  0 }
 };
 
