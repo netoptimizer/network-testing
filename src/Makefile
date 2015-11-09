@@ -12,13 +12,13 @@ SRCS =  ipv6_example01.c udp_example02.c udp_echo.c udp_client_echo.c \
 OBJECTS = common_socket.o common.o
 HEADERS = ${OBJECTS:.o=.h}
 
-TARGETS = ${SRCS:.c=}
+TARGETS = ${SRCS:.c=} compiler_test01
 
 # librt needed for 'clock_gettime'
 LIBS=-lrt
 LIBS_PCAP=-lpcap
 
-CFLAGS := -O2 -Wall
+CFLAGS := -O2 -Wall -g
 
 all: $(TARGETS)
 
@@ -41,6 +41,10 @@ pcap_timeread: pcap_timeread.c
 
 pcap_read: pcap_read.c
 	gcc -o $@ $(LIBS_PCAP) $<
+
+# Special compiler option to trigger issue
+compiler_test01: compiler_test01.c
+	gcc -o $@ $(CFLAGS) -fno-strict-overflow $<
 
 cscope:
 	@echo "Generate Cscope files"
