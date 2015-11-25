@@ -41,16 +41,16 @@ probe $1.return {
                 if (t1_ns == 0) {
                         printf("Cpu %d was already in that function?\n", cpu());
                 } else {
-                        intervals <<< (gettimeofday_ns() - t1_ns)/1000
+                        intervals <<< (gettimeofday_ns() - t1_ns)
                 }
         }
 }
 
 probe end {
-        printf("Duration min:%dus avg:%dus max:%dus count:%d\n",
+        printf("Duration min:%dns avg:%dns max:%dns count:%d\n",
                @min(intervals), @avg(intervals), @max(intervals),
                @count(intervals))
-        printf("Duration (us):\n")
+        printf("Duration ns (nanosec):\n")
         print(@hist_log(intervals));
         printf("\n")
 }
