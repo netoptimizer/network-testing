@@ -1,11 +1,24 @@
 /*
 
-Based on Brendan Gregg's work: http://www.brendangregg.com/
+Purpose: SystemTap script for tracing a specific kernel function, and
+ measure time spend in function call to
+ produce a histogram over latencies.
 
-usage:
-stap -v histogram-kernel.stp 'kernel.function("net_rx_action")'
-stap -v histogram-kernel.stp 'kernel.function("tcp_collapse")'
-stap -v histogram-kernel.stp 'kernel.function("netif_receive_skb_internal")'
+Literals passed in from the stap command line:
+ arg1 = kernel or module function to record
+ arg2 = optional setting how long to run (default 30 sec)
+
+Invoke examples:
+ stap -v histogram-kernel01.stp 'kernel.function("net_rx_action")'
+ stap -v histogram-kernel01.stp 'kernel.function("tcp_collapse")'
+ stap -v histogram-kernel01.stp 'kernel.function("netif_receive_skb_internal")'
+ stap -v histogram-kernel01.stp 'module("ixgbe").function("ixgbe_clean_rx_irq")'
+
+Credit:
+ Based on Marek Majkowski work:
+  https://github.com/majek/dump/blob/master/system-tap/histogram-kernel.stp
+ Which is based on Brendan Gregg's work: http://www.brendangregg.com/
+
 */
 
 global trace[64]
@@ -42,6 +55,7 @@ probe end {
         printf("\n")
 }
 
+/* Adjusting how long script runs */
 %( $# > 1 %?
 probe timer.sec($2) {
    %:
