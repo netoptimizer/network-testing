@@ -97,13 +97,14 @@ sub difference($$) {
     foreach my $key (@keys) {
 	my $value_now  = $stat->{$key};
 	my $value_prev = $prev->{$key};
-	# print "key:$key val:$prev->{$key}\n";
 	my $diff = $value_now - $value_prev;
 	next if (($diff == 0) && !$all);
-	my $pretty = $diff;
+	my $pretty = $diff; # sprintf("%15d", $diff);
+	# Add thousands comma separators (use Number::Format instead?)
 	$pretty =~ s/(\d{1,3}?)(?=(\d{3})+$)/$1,/g;
-	# print "Stat: $key =\t $diff pretty:$pretty\n";
-	print "Ethtool($DEV) stat: \t$diff \t($pretty)\t<= $key /sec\n";
+	# Right-justify via printf
+	printf("Ethtool($DEV) stat: %12d (%15s) <= %s /sec\n",
+	       $diff, $pretty, $key);
 	$something_changed++;
     }
     return $something_changed;
@@ -111,7 +112,7 @@ sub difference($$) {
 
 sub stats_loop() {
     my $collect = $count + 1; # First round was empty (+1)
-    my $prev = {};
+    my $prev = undef;
     my $stats = {};
 
     # count == 0 is infinite
@@ -119,9 +120,9 @@ sub stats_loop() {
 	print "\nShow adapter $DEV statistics (ONLY that changed!)\n";
 	$stats = collect_stats($DEV);
 	my $changes = difference($stats, $prev);
-	if (!(keys %$prev)) {
+	if (!(defined $prev)) {
 	    print " ***NOTE***: Collecting stats for next round\n";
-	} elsif (!$changes && !(keys %$prev)) {
+	} elsif (!$changes) {
 	    print " ***WARN***: No counters changed\n" ;
 	}
 	$prev = $stats;
