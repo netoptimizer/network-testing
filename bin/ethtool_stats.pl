@@ -11,6 +11,7 @@
  options:
     --dev	Ethernet adapter/device to get stats from.
     --count	How many seconds sampling will run (default: infinite)
+    --sec	Sets sample interval in seconds (default: 1.0 sec)
     --all	List all zero stats
     --help	Brief usage/help message.
     --man	Full documentation.
@@ -31,6 +32,7 @@ use warnings FATAL => 'all';
 use Data::Dumper;
 use Pod::Usage;
 use Getopt::Long;
+use Time::HiRes;
 
 my $DEV    = undef;
 my $debug  = 0;
@@ -39,12 +41,14 @@ my $help   = 0;
 my $man    = 0;
 my $all    = 0;
 my $count  = 0;
+my $delay  = 1;
 
 GetOptions (
     'dev=s'    => \$DEV,
     'count=s'  => \$count,
+    'sec=s'    => \$delay,
     'all!'     => \$all,
-    'debug!'   => \$debug,
+    'debug=s'  => \$debug,
     'dumper!'  => \$dumper,
     'help|?'   => sub { Getopt::Long::HelpMessage(-verbose => 1) },
     'man'      => \$man,
@@ -59,15 +63,16 @@ sub collect_stats($) {
     my $device = shift;
     my %hash;
     open(ETHTOOL, "sudo /usr/sbin/ethtool -S $device |");
+    $hash{timestamp} = Time::HiRes::time();
     while (defined(my $line = <ETHTOOL>)) {
 	chomp($line);
 	if ($line =~ m/\s*(.+):\s?(\d+)/) {
 	    my $key   = $1;
 	    my $value = $2;
 	    $hash{$key} = $value;
-	    print "PARSED: $line -- key:$key val:$value\n" if $debug;
+	    print "PARSED: $line -- key:$key val:$value\n" if ($debug > 2);
 	} else {
-	    print "WARN: could not parse line:\"$line\"\n" if $debug;
+	    print "WARN: could not parse line:\"$line\"\n" if ($debug > 1);
 	}
     }
     close(ETHTOOL);
@@ -93,13 +98,29 @@ sub traverse_hash_sorted(%) {
 sub difference($$) {
     my ($stat, $prev)= @_;
     my $something_changed = 0;
+    if (!defined($prev)) {
+	return 0;
+    }
+    # The sleep function might not be accurate enough, and this
+    # program also add some delay, thus calculate sampling period by
+    # highres timestamps
+    my $period = $stat->{timestamp} - $prev->{timestamp};
+    print "timestamp $stat->{timestamp} - $prev->{timestamp} = $period\n"
+	if $debug;
+    if (($period > $delay * 2) || ($period < ($delay / 2))) {
+	print " ***WARN***: Sample period ($delay) not accurate ($period)\n";
+    }
+    delete $prev->{timestamp};
+
     my @keys = (sort keys %$prev);
     foreach my $key (@keys) {
 	my $value_now  = $stat->{$key};
 	my $value_prev = $prev->{$key};
-	my $diff = $value_now - $value_prev;
+	my $diff = ($value_now - $value_prev) / $period;
 	next if (($diff == 0) && !$all);
-	my $pretty = $diff; # sprintf("%15d", $diff);
+	# Round off number
+	$diff = sprintf("%.0f", $diff);
+	my $pretty = $diff;
 	# Add thousands comma separators (use Number::Format instead?)
 	$pretty =~ s/(\d{1,3}?)(?=(\d{3})+$)/$1,/g;
 	# Right-justify via printf
@@ -121,12 +142,12 @@ sub stats_loop() {
 	$stats = collect_stats($DEV);
 	my $changes = difference($stats, $prev);
 	if (!(defined $prev)) {
-	    print " ***NOTE***: Collecting stats for next round\n";
+	    print " ***NOTE***: Collecting stats for next round ($delay sec)\n";
 	} elsif (!$changes) {
 	    print " ***WARN***: No counters changed\n" ;
 	}
 	$prev = $stats;
-	sleep 1;
+	Time::HiRes::sleep($delay);
     }
 }
 stats_loop();
