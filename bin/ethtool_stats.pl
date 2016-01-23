@@ -34,7 +34,7 @@ use Pod::Usage;
 use Getopt::Long;
 use Time::HiRes;
 
-my $DEV    = undef;
+my @DEV    = ();
 my $debug  = 0;
 my $dumper = 0;
 my $help   = 0;
@@ -44,7 +44,7 @@ my $count  = 0;
 my $delay  = 1;
 
 GetOptions (
-    'dev=s'    => \$DEV,
+    'dev=s'    => \@DEV,
     'count=s'  => \$count,
     'sec=s'    => \$delay,
     'all!'     => \$all,
@@ -54,7 +54,7 @@ GetOptions (
     'man'      => \$man,
     ) or pod2usage(2);
 pod2usage(-exitstatus => 0, -verbose => 2) if $man;
-pod2usage(-exitstatus => 1, -verbose => 1) unless defined $DEV;
+pod2usage(-exitstatus => 1, -verbose => 1) unless scalar @DEV;
 
 my %STATS;
 
@@ -95,8 +95,8 @@ sub traverse_hash_sorted(%) {
     }
 }
 
-sub difference($$) {
-    my ($stat, $prev)= @_;
+sub difference($$$) {
+    my ($device, $stat, $prev)= @_;
     my $something_changed = 0;
     if (!defined($prev)) {
 	return 0;
@@ -124,8 +124,8 @@ sub difference($$) {
 	# Add thousands comma separators (use Number::Format instead?)
 	$pretty =~ s/(\d{1,3}?)(?=(\d{3})+$)/$1,/g;
 	# Right-justify via printf
-	printf("Ethtool($DEV) stat: %12d (%15s) <= %s /sec\n",
-	       $diff, $pretty, $key);
+	printf("Ethtool(%-8s) stat: %12d (%15s) <= %s /sec\n",
+	       $device, $diff, $pretty, $key);
 	$something_changed++;
     }
     return $something_changed;
@@ -133,20 +133,24 @@ sub difference($$) {
 
 sub stats_loop() {
     my $collect = $count + 1; # First round was empty (+1)
-    my $prev = undef;
-    my $stats = {};
+    my %prev = ();
+    my %stats = ();
 
     # count == 0 is infinite
     while ( ($count == 0) ? 1 : $collect-- ) {
-	print "\nShow adapter $DEV statistics (ONLY that changed!)\n";
-	$stats = collect_stats($DEV);
-	my $changes = difference($stats, $prev);
-	if (!(defined $prev)) {
+	print "\nShow adapter " . join(' ', @DEV) . " statistics (ONLY that changed!)\n";
+	my $changes = 0;
+	if (!scalar keys %prev) {
 	    print " ***NOTE***: Collecting stats for next round ($delay sec)\n";
-	} elsif (!$changes) {
+	}
+	foreach my $device (@DEV){
+		$stats{$device} = collect_stats($device);
+		$changes += difference($device, $stats{$device}, $prev{$device});
+	}
+	if (!$changes) {
 	    print " ***WARN***: No counters changed\n" ;
 	}
-	$prev = $stats;
+	%prev = %stats;
 	Time::HiRes::sleep($delay);
     }
 }
