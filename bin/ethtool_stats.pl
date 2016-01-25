@@ -9,7 +9,8 @@
  ethtool_stats.pl --dev DEVICE [options]
 
  options:
-    --dev	Ethernet adapter/device to get stats from.
+    --dev	Ethernet adapter(s)/device(s) to get stats from.
+                (specify --dev more times to sample multiple devices)
     --count	How many seconds sampling will run (default: infinite)
     --sec	Sets sample interval in seconds (default: 1.0 sec)
     --all	List all zero stats
@@ -138,16 +139,17 @@ sub stats_loop() {
 
     # count == 0 is infinite
     while ( ($count == 0) ? 1 : $collect-- ) {
-	print "\nShow adapter " . join(' ', @DEV) . " statistics (ONLY that changed!)\n";
+	print "\nShow adapter(s) (" . join(' ', @DEV) .
+	    ") statistics (ONLY that changed!)\n";
 	my $changes = 0;
-	if (!scalar keys %prev) {
-	    print " ***NOTE***: Collecting stats for next round ($delay sec)\n";
-	}
 	foreach my $device (@DEV){
 		$stats{$device} = collect_stats($device);
-		$changes += difference($device, $stats{$device}, $prev{$device});
+		$changes += difference($device,
+				       $stats{$device}, $prev{$device});
 	}
-	if (!$changes) {
+	if (!scalar keys %prev) {
+	    print " ***NOTE***: Collecting stats for next round ($delay sec)\n";
+	} elsif (!$changes) {
 	    print " ***WARN***: No counters changed\n" ;
 	}
 	%prev = %stats;
