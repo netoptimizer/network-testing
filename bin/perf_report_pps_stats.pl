@@ -52,6 +52,11 @@ pod2usage(-exitstatus => 1, -verbose => 1) unless $CPU;
 # Convert PPS to nanosec
 my $NANOSEC = (1/$PPS*10**9);
 
+# Keep track of functions displayed. Purpose is to display the
+# negative list if functions that were not displayed in one of the
+# special reports.
+my %func_visited;
+
 sub collect_report($$) {
     # Parse perf report and return hash
     my ($cpu, $nanosec) = @_;
@@ -93,6 +98,38 @@ sub collect_report($$) {
     return \%hash;
 }
 
+sub print_func_keys($$$) {
+    my $stat = shift;
+    my $keys_ref = shift;
+    my $limit = shift;
+
+    my @keys = @$keys_ref;
+
+    # Pullout hash containing function names.
+    my $f = $stat->{"func"};
+
+    # Stat variables;
+    my $sum_percent = 0;
+    my $sum_ns      = 0;
+
+    foreach my $func (sort
+		      { $f->{$b}{"percent"} <=> $f->{$a}{"percent"} }
+		      @keys)
+    {
+	my $percent = $f->{$func}{"percent"};
+	my $ns      = $f->{$func}{"nanosec"};
+	$sum_percent += $percent;
+	$sum_ns      += $ns;
+	if ($percent < $limit) {
+	    print " (Percent limit($limit%) stop at \"$func\")\n";
+	    last;
+	}
+	printf(" %5.2f %s ~= %3d ns <= %s\n", $percent, "%", $ns , $func);
+    }
+    printf(" Sum: %5.2f %s ~= %3d ns => Total: %3d ns\n\n",
+	   $sum_percent, "%", $sum_ns, $NANOSEC);
+}
+
 sub show_report_keys($$$$) {
     my $stat = shift;
     my $keys_ref = shift;
@@ -111,7 +148,8 @@ sub show_report_keys($$$$) {
     my %hash;
     foreach my $func (@$keys_ref) {
 	if (defined $f->{$func}) {
-	    $hash{$func} = 1;
+	    $hash{$func} += 1;
+	    $func_visited{$func} += 1 if ($hash{$func} == 1);
 	}
     }
     # Also add keys matching a pattern, mark hash to avoid dublicates
@@ -120,7 +158,8 @@ sub show_report_keys($$$$) {
     foreach my $match (@pattern) {
 	foreach my $func (@all_func) {
 	    if ($func =~ m/$match/i ) {
-		$hash{$func} = 1;
+		$hash{$func} += 1;
+		$func_visited{$func} += 1 if ($hash{$func} == 1);
 	    }
 	}
     }
@@ -128,27 +167,35 @@ sub show_report_keys($$$$) {
     my @keys = keys %hash;
     # print Dumper(\@keys) if $dumper;
 
-    # Stat variables;
-    my $sum_percent = 0;
-    my $sum_ns      = 0;
+    print_func_keys($stat, \@keys, $limit);
+}
 
-    foreach my $func (sort
-		      { $f->{$b}{"percent"} <=> $f->{$a}{"percent"} }
-		      @keys)
-    {
-	my $percent = $f->{$func}{"percent"};
-	my $ns      = $f->{$func}{"nanosec"};
-	$sum_percent += $percent;
-	$sum_ns      += $ns;
-	if ($percent < $limit) {
-	    print " (Stop at \"$func\", below percent limit $limit)\n"
-		if $debug;
-	    last;
+sub show_negative_report($$) {
+    my $stat = shift;
+    my $visited_ref = shift;
+
+    # Pullout hash containing function names.
+    my $f = $stat->{"func"};
+
+    # Find all keys/func not marked in the visited hash
+    my @all_func = keys %$f;
+    my @neg_keys;
+    foreach my $func (@all_func) {
+	if (not defined $visited_ref->{$func}) {
+	    push @neg_keys, $func;
+	} else {
+	    # Were any of the visited functions "double" included in
+	    # the detailed reports?
+	    my $visit_cnt = $visited_ref->{$func};
+	    if ($visit_cnt > 1) {
+		printf("Double(cnt:%d) displayed function: %s\n",
+		       $visit_cnt, $func)
+	    }
 	}
-	printf(" %5.2f %s ~= %3d ns <= %s\n", $percent, "%", $ns , $func);
     }
-    printf(" Sum: %5.2f %s ~= %3d ns => Total: %3d ns\n\n",
-	   $sum_percent, "%", $sum_ns, $NANOSEC);
+
+    print "Negative Report: functions NOT included in detail reports::\n";
+    print_func_keys($stat, \@neg_keys, 0);
 }
 
 sub show_report($) {
@@ -166,6 +213,10 @@ sub show_report($) {
 
 my $STATS = collect_report($CPU, $NANOSEC);
 show_report($STATS);
+# Reset the functions "visited" hash, after the normal show_report
+# this way we only look at special reports.
+%func_visited = ();
+
 
 sub show_report_slab($) {
     my $stat = shift;
@@ -184,12 +235,13 @@ kmem_cache
 cmpxchg_double_slab
 cmpxchg
 slab
+get_partial_node
+unfreeze_partials
 /;
     print "Report: kmem_cache/SLUB allocator functions ::\n";
     show_report_keys($STATS,\@func_kmem, \@func_kmem_pattern, 0);
 }
 show_report_slab($STATS);
-
 
 sub show_report_dma($) {
     my $stat = shift;
@@ -214,6 +266,16 @@ __alloc_page_frag
 __free_pages_ok
 free_pages_prepare
 get_pfnblock_flags_mask
+get_page_from_freelist
+free_one_page
+__alloc_pages_nodemask
+__mod_zone_page_state
+mod_zone_page_state
+next_zones_zonelist
+__rmqueue
+__zone_watermark_ok
+__inc_zone_state
+zone_statistics
 /;
     my @pattern = qw/
 page_frag
@@ -230,14 +292,17 @@ sub show_report_related($@) {
     print "Report: related to pattern \"" . join('+', @pattern) . "\" ::\n";
     show_report_keys($STATS,\@func, \@pattern, 0);
 }
-show_report_related($STATS, "page");
+#show_report_related($STATS, "page");
 show_report_related($STATS, "spin_.*lock|mutex");
 show_report_related($STATS, "skb");
 
-show_report_related($STATS, "eth_type_trans|mlx5e|net_rx_action|softirq");
+show_report_related($STATS, "eth_type_trans|mlx5e|ixgbe|net_rx_action|softirq");
 
 #print Dumper($STATS) if $dumper;
+print Dumper(\%func_visited) if $dumper;
 print "Total PPS:$PPS NANOSEC:$NANOSEC\n" if $dumper;
+
+show_negative_report($STATS, \%func_visited);
 
 __END__
 
