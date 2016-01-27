@@ -83,15 +83,26 @@ sub collect_report($$) {
 	    my $percent = $1;
 	    my $skip    = $2;
 	    my $sym     = $3;
-	    if (defined $hash{"func"}{$sym}{"percent"}) {
-		print "***WARN***: function $sym double defined\n";
+	    my $ns = 0;
+	    if (not defined $hash{"func"}{$sym}{"percent"}) {
+		$hash{"func"}{$sym}{"percent"} = $percent;
+		$ns = $nanosec * ($percent/100);
+		$hash{"func"}{$sym}{"nanosec"} = $ns;
+	    } else {
+		# Handle if defined before
+		print "***WARN***: function $sym double defined ($percent)\n";
+		$hash{"func"}{$sym}{"percent"} += $percent;
+		# Subtract pref nanosec from "nanosec_sum"
+		my $ns_prev = $hash{"func"}{$sym}{"nanosec"};
+		$hash{"stat"}{"nanosec_sum"} -= $ns_prev;
+		# Calc new nanosec based on sum percentage
+		my $p_sum = $hash{"func"}{$sym}{"percent"};
+		$ns = $nanosec * ($p_sum/100);
+		$hash{"func"}{$sym}{"nanosec"} = $ns;
 	    }
-	    $hash{"stat"}{"percent_sum"}   += $percent;
-	    $hash{"func"}{$sym}{"percent"} += $percent;
-	    my $p_sum = $hash{"func"}{$sym}{"percent"};
-	    my $ns = $nanosec * ($p_sum/100);
-	    $hash{"func"}{$sym}{"nanosec"} += $ns;
-	    $hash{"stat"}{"nanosec_sum"}   += $ns;
+	    $hash{"stat"}{"percent_sum"} += $percent;
+	    $hash{"stat"}{"nanosec_sum"} += $ns;
+
 	    print "PARSED: $line =>\n\t" .
 		"p:\"$percent\" skip:\"$skip\" sym:\"$sym\"\n" if ($debug > 2);
 	} else {
@@ -111,7 +122,8 @@ sub print_func_keys($$$) {
 
     # Pullout hash containing function names.
     my $f = $stat->{"func"};
-
+    # Get the total nanosec stored in "stat"
+    my $nanosec_total = $stat->{"stat"}{"nanosec"};
     # Stat variables;
     my $sum_percent = 0;
     my $sum_ns      = 0;
@@ -132,9 +144,9 @@ sub print_func_keys($$$) {
     }
     # Calc nanosecs from percent sum, as nanosec round-down at low
     # percentage will be cancled out
-    my $calc_ns = $NANOSEC * ($sum_percent/100);
+    my $calc_ns = $nanosec_total * ($sum_percent/100);
     printf(" Sum: %5.2f %s => calc: %.1f ns (sum: %.1f ns) => Total: %.1f ns\n\n",
-	   $sum_percent, "%", $calc_ns, $sum_ns, $NANOSEC);
+	   $sum_percent, "%", $calc_ns, $sum_ns, $nanosec_total);
 }
 
 sub show_report_keys($$$$) {
@@ -296,13 +308,60 @@ unfreeze_partials
     show_report_keys($STATS,\@func_kmem, \@func_kmem_pattern, 0);
 }
 
+sub show_report_netstack($) {
+    my $stat = shift;
+    my @func = qw/
+fib_table_lookup
+fib_validate_source
+udp_v4_early_demux
+ip_rcv_finish
+ip_rcv
+ip_forward
+ip_forward_finish
+ip_output
+dev_hard_start_xmit
+dev_queue_xmit
+__dev_queue_xmit
+sch_direct_xmit
+dql_completed
+napi_complete_done
+__napi_schedule
+ip_route_input_noref
+find_exception
+/;
+    my @pattern = qw/
+ip_finish_output
+_pick_tx
+_gro_\W+$
+ip_route_
+net_.._action
+softirq
+/;
+    print "Group-report: Core network-stack functions ::\n";
+    show_report_keys($STATS,\@func, \@pattern, 0);
+}
+
+sub show_report_gro($) {
+    my $stat = shift;
+    my @func = qw/
+/;
+    my @pattern = qw/
+^\w+_gro_\w++$
+/;
+    print "Group-report: GRO network-stack functions ::\n";
+    show_report_keys($STATS,\@func, \@pattern, 0);
+}
+
+
 # Order of detailed group reports:
-show_report_related($STATS, "eth_type_trans|mlx5e|ixgbe|net_.._action|softirq");
+show_report_related($STATS, "eth_type_trans|mlx5|ixgbe|__iowrite64_copy");
 show_report_dma($STATS);
 show_report_pagefrag($STATS);
 
 show_report_slab($STATS);
 show_report_related($STATS, "skb");
+show_report_netstack($STATS);
+show_report_gro($STATS);
 
 #show_report_related($STATS, "page");
 show_report_related($STATS, "spin_.*lock|mutex");
