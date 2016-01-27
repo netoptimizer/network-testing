@@ -194,7 +194,7 @@ sub show_negative_report($$) {
 	}
     }
 
-    print "Negative Report: functions NOT included in detail reports::\n";
+    print "Negative Report: functions NOT included in group reports::\n";
     print_func_keys($stat, \@neg_keys, 0);
 }
 
@@ -217,31 +217,13 @@ show_report($STATS);
 # this way we only look at special reports.
 %func_visited = ();
 
-
-sub show_report_slab($) {
+sub show_report_related($@) {
     my $stat = shift;
-    my @func_kmem = qw/
-kmem_cache_free
-kmem_cache_free_bulk
-kmem_cache_alloc
-kmem_cache_alloc_bulk
-__slab_free
-___slab_alloc
-get_partial_node
-put_cpu_partial
-/;
-    my @func_kmem_pattern = qw/
-kmem_cache
-cmpxchg_double_slab
-cmpxchg
-slab
-get_partial_node
-unfreeze_partials
-/;
-    print "Report: kmem_cache/SLUB allocator functions ::\n";
-    show_report_keys($STATS,\@func_kmem, \@func_kmem_pattern, 0);
+    my @pattern = @_;
+    my @func = ();
+    print "Group-report: related to pattern \"" . join('+', @pattern) . "\" ::\n";
+    show_report_keys($STATS,\@func, \@pattern, 0);
 }
-show_report_slab($STATS);
 
 sub show_report_dma($) {
     my $stat = shift;
@@ -253,10 +235,9 @@ unmap_single
 dma
 swiotlb
 /;
-    print "Report: DMA functions ::\n";
+    print "Group-report: DMA functions ::\n";
     show_report_keys($STATS,\@func, \@pattern, 0);
 }
-show_report_dma($STATS);
 
 sub show_report_pagefrag($) {
     my $stat = shift;
@@ -280,23 +261,45 @@ zone_statistics
     my @pattern = qw/
 page_frag
 /;
-    print "Report: page_frag_cache functions ::\n";
+    print "Group-report: page_frag_cache functions ::\n";
     show_report_keys($STATS,\@func, \@pattern, 0);
 }
+
+sub show_report_slab($) {
+    my $stat = shift;
+    my @func_kmem = qw/
+kmem_cache_free
+kmem_cache_free_bulk
+kmem_cache_alloc
+kmem_cache_alloc_bulk
+__slab_free
+___slab_alloc
+get_partial_node
+put_cpu_partial
+/;
+    my @func_kmem_pattern = qw/
+kmem_cache
+cmpxchg_double_slab
+cmpxchg
+slab
+get_partial_node
+unfreeze_partials
+/;
+    print "Group-report: kmem_cache/SLUB allocator functions ::\n";
+    show_report_keys($STATS,\@func_kmem, \@func_kmem_pattern, 0);
+}
+
+# Order of detailed group reports:
+show_report_related($STATS, "eth_type_trans|mlx5e|ixgbe|net_rx_action|softirq");
+show_report_dma($STATS);
 show_report_pagefrag($STATS);
 
-sub show_report_related($@) {
-    my $stat = shift;
-    my @pattern = @_;
-    my @func = ();
-    print "Report: related to pattern \"" . join('+', @pattern) . "\" ::\n";
-    show_report_keys($STATS,\@func, \@pattern, 0);
-}
-#show_report_related($STATS, "page");
-show_report_related($STATS, "spin_.*lock|mutex");
+show_report_slab($STATS);
 show_report_related($STATS, "skb");
 
-show_report_related($STATS, "eth_type_trans|mlx5e|ixgbe|net_rx_action|softirq");
+#show_report_related($STATS, "page");
+show_report_related($STATS, "spin_.*lock|mutex");
+
 
 #print Dumper($STATS) if $dumper;
 print Dumper(\%func_visited) if $dumper;
