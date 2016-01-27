@@ -20,6 +20,10 @@
 
 Helper script to (parse and) analyze perf report.
 
+=head1 TODO
+
+Parse --header-only, to make it easier to save info about report.
+
 =cut
 
 use strict;
