@@ -124,10 +124,13 @@ sub print_func_keys($$$) {
 	    print " (Percent limit($limit%) stop at \"$func\")\n";
 	    last;
 	}
-	printf(" %5.2f %s ~= %3d ns <= %s\n", $percent, "%", $ns , $func);
+	printf(" %5.2f %s ~= %4.1f ns <= %s\n", $percent, "%", $ns , $func);
     }
-    printf(" Sum: %5.2f %s ~= %3d ns => Total: %3d ns\n\n",
-	   $sum_percent, "%", $sum_ns, $NANOSEC);
+    # Calc nanosecs from percent sum, as nanosec round-down at low
+    # percentage will be cancled out
+    my $calc_ns = $NANOSEC * ($sum_percent/100);
+    printf(" Sum: %5.2f %s => calc: %.1f ns (sum: %.1f ns) => Total: %.1f ns\n\n",
+	   $sum_percent, "%", $calc_ns, $sum_ns, $NANOSEC);
 }
 
 sub show_report_keys($$$$) {
@@ -290,7 +293,7 @@ unfreeze_partials
 }
 
 # Order of detailed group reports:
-show_report_related($STATS, "eth_type_trans|mlx5e|ixgbe|net_rx_action|softirq");
+show_report_related($STATS, "eth_type_trans|mlx5e|ixgbe|net_.._action|softirq");
 show_report_dma($STATS);
 show_report_pagefrag($STATS);
 
