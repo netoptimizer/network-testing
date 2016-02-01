@@ -33,7 +33,7 @@ use Pod::Usage;
 use Getopt::Long;
 
 my $PPS    = 0;
-my $CPU    = 0;
+my $CPU    = undef;
 my $LIMIT  = 0.10;
 my $debug  = 0;
 my $dumper = 0;
@@ -51,7 +51,7 @@ GetOptions (
     ) or pod2usage(2);
 pod2usage(-exitstatus => 0, -verbose => 2) if $man;
 pod2usage(-exitstatus => 1, -verbose => 1) unless $PPS;
-pod2usage(-exitstatus => 1, -verbose => 1) unless $CPU;
+pod2usage(-exitstatus => 1, -verbose => 1) unless defined $CPU;
 
 # Convert PPS to nanosec
 my $NANOSEC = (1/$PPS*10**9);
