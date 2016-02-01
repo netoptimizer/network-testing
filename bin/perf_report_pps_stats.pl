@@ -24,6 +24,14 @@ Helper script to (parse and) analyze perf report.
 
 Parse --header-only, to make it easier to save info about report.
 
+Implement automatic grouping:
+ The manual group-report sorting is error prone, and misguiding as we
+ cannot distinguished who e.g. called the page alloc functions.
+ Realized that the correct approach is to parse the output of "perf
+ script" instead, and fold the stack, and auto-generate the grouping
+ based on that.
+ Like FlameGraph does (https://github.com/brendangregg/FlameGraph)
+
 =cut
 
 use strict;
@@ -379,6 +387,9 @@ __END__
 
  There is suppose to be a perl module integration with perf, but I
  could not get it to work. See man perf-script-perl(1).
+
+ Also see FlameGraph https://github.com/brendangregg/FlameGraph
+ for a graphical representation.
 
 =head1 AUTHOR
 
