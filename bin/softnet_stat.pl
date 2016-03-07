@@ -92,6 +92,22 @@ sub collect_stats() {
     return \%hash;
 }
 
+sub print_value($$) {
+    my ($value, $enable_pretty_print)= @_;
+
+    # Round off number
+    $value = sprintf("%.0f", $value);
+
+    if ($enable_pretty_print) {
+	my $pretty = $value;
+	# Add thousands comma separators (use Number::Format instead?)
+	$pretty =~ s/(\d{1,3}?)(?=(\d{3})+$)/$1,/g;
+	printf("%15s ", $pretty);
+    } else {
+	printf("%15d ", $value);
+    }
+}
+
 sub difference($$) {
     my ($stat, $prev)= @_;
     my $something_changed = 0;
@@ -130,6 +146,12 @@ sub difference($$) {
     }
     printf("\n");
 
+    # Reset sum hash, just to be sure (not really necessary)
+    my %sum;
+    foreach my $key (@stat_keys) {
+	$sum{$key} = 0;
+    }
+
     my @cpus = (sort keys %$prev);
     foreach my $cpu (@cpus) {
 	printf("CPU:%02d ", $cpu);
@@ -140,24 +162,20 @@ sub difference($$) {
 	    my $value_now  = $stat->{$cpu}{$key};
 	    my $value_prev = $prev->{$cpu}{$key};
 	    my $diff = ($value_now - $value_prev) / $period;
-	    # Round off number
-	    $diff = sprintf("%.0f", $diff);
-	    my $pretty = $diff;
-	    # Add thousands comma separators (use Number::Format instead?)
-	    $pretty =~ s/(\d{1,3}?)(?=(\d{3})+$)/$1,/g;
-	    # Right-justify via printf
-	    #printf("%s/sec: %d (%s) ", $key, $diff, $pretty);
-	    # printf("%12d (%15s) ", $diff, $pretty);
-	    if (!$pretty_print) {
-		printf("%15d ", $diff);
-	    } else {
-		printf("%15s ", $pretty);
-	    }
+	    $sum{$key} += $diff;
+	    print_value($diff, $pretty_print);
 	    $something_changed++;
 	}
 	printf("\n");
     }
-    printf("\n");
+
+    # Sum columns
+    printf("\nSummed:");
+    foreach my $key (@stat_keys) {
+	print_value($sum{$key}, $pretty_print);
+    }
+    printf("\n\n");
+
     return $something_changed;
 }
 
