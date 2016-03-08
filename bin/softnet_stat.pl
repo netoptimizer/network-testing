@@ -26,6 +26,28 @@
  To make things easier I wrote this small perl script for get
  so human readable statistics from /proc/net/softnet_stat.
 
+=head1 FUTURE DEVEL / TODO-list
+
+ Some feature requests from Willem de Bruijn, based on tool called softnettop:
+
+ A minimum cut-off value is helpful, especially on beefy servers, to
+ suppress the many 0 rows. Preferably configurable, to also be able to
+ suppress low-rate background traffic when analyzing a few large
+ streams. My default was 500.
+
+ (Support different kernel versions)
+ The number of columns has grown with kernel versions. The latest
+ column is flow_limit, added in 3.11 at99bbc7074190. It is helpful for
+ the script to be robust against both older and future kernels. On
+ which note, to be able to support these kinds of tools, any new
+ columns to such procfs files should be appended, not inserted.
+
+=head1 DETAILS
+
+ Notice the time "squeezed" column is number of squeeze events per
+ second, not number of packets squeezed. This is often misunderstood
+ if not explained clearly.
+
 =cut
 
 use strict;
