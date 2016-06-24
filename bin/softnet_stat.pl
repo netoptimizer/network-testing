@@ -89,14 +89,14 @@ sub collect_stats() {
 	chomp($line);
 	# Hint: For format look at kernel func softnet_seq_show()
 	# total dropped squeezed 0{5} collision received_rps flow_limit_count
-	if ($line =~ m/(\w+)\s+(\w+)\s+(\w+)[\s+\w+]{5}\s+(\w+)\s+(\w+)\s+(\w+)/) {
+	if ($line =~ m/(\w+)\s+(\w+)\s+(\w+)(\s+\w+){5}\s+(\w+)\s+(\w+)\s+(\w+)/) {
 	    my $cpu = $cpu_iterator++;
 	    my $total            = hex $1;
 	    my $dropped          = hex $2;
 	    my $squeezed         = hex $3;
-	    my $collision        = hex $4;
-	    my $received_rps     = hex $5;
-	    my $flow_limit_count = hex $6;
+	    my $collision        = hex $5;
+	    my $received_rps     = hex $6;
+	    my $flow_limit_count = hex $7;
 
 	    $hash{$cpu}{total}      = $total;
 	    $hash{$cpu}{dropped}    = $dropped;
@@ -105,7 +105,7 @@ sub collect_stats() {
 	    $hash{$cpu}{rx_rps}     = $received_rps;
 	    $hash{$cpu}{flow_limit} = $flow_limit_count;
 
-	    print "PARSED: $line -- tot:$total\n" if ($debug > 2);
+	    print "PARSED: $line -- tot:$total sq:$squeezed/$3\n" if ($debug > 2);
 	} else {
 	    print "WARN: could not parse line:\"$line\"\n" if ($debug > 1);
 	}
