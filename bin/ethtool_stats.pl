@@ -76,7 +76,8 @@ sub collect_stats($) {
 	    print "WARN: could not parse line:\"$line\"\n" if ($debug > 1);
 	}
     }
-    close(ETHTOOL);
+    close(ETHTOOL)
+	|| die "ERR: Ethtool --statistics failed on device:$device $!";
     return \%hash;
 }
 
