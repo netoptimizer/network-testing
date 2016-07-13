@@ -4,9 +4,9 @@
 #  - Same destination IP
 #  - Fake source IPs for each flow (fixed based on thread number)
 #
-# Useful for scale testing on receiver, to see whether silo-ing flows
+# Useful for scale testing on receiver, to see whether silo'ing flows
 # works and scales.  For optimal scalability (on receiver) each
-# seperate-flow should not access shared variables/data. This script
+# separate-flow should not access shared variables/data. This script
 # helps magnify any of these scaling issues by overloading the receiver.
 #
 basedir=`dirname $0`
