@@ -2,8 +2,8 @@
 #
 # Script example for many flows testing
 #
-# Number of simultanious flows limited by variable $FLOWS
-# and flow packet length controlled by variable $FLOWLEN
+# Number of simultaneous flows limited by variable $FLOWS
+# and number of packets per flow controlled by variable $FLOWLEN
 #
 basedir=`dirname $0`
 source ${basedir}/functions.sh
@@ -59,8 +59,6 @@ for ((thread = 0; thread < $THREADS; thread++)); do
     pg_set $dev "flag IPSRC_RND"
     pg_set $dev "src_min 198.18.0.0"
     pg_set $dev "src_max 198.19.255.255"
-
-    # TODO: Randomize port number
 
     # Limit number of flows (max 65535)
     pg_set $dev "flows $FLOWS"
