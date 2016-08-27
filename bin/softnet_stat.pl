@@ -174,7 +174,7 @@ sub difference($$) {
 	$sum{$key} = 0;
     }
 
-    my @cpus = (sort keys %$prev);
+    my @cpus = ( sort {$a <=> $b} (keys %$prev) );
     foreach my $cpu (@cpus) {
 	printf("CPU:%02d ", $cpu);
 
