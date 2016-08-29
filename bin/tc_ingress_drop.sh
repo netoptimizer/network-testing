@@ -37,6 +37,10 @@ function usage() {
     echo "  -v | --verbose : (\$VERBOSE)   verbose"
     echo "  --flush        : (\$FLUSH)     Only flush (remove TC drop rules)"
     echo "  --dry-run      : (\$DRYRUN)    Dry-run only (echo tc commands)"
+    echo "  -s | --stats   : (\$STATS)     Call TC statistics command"
+    echo "  --port         : (\$UDP_PORT)  Drop given UDP port"
+    echo "  --ip           : (\$IPADDR)    Drop given IP-addr"
+    echo "  --icmp         : (\$ICMP)      Drop all ICMP traffic"
     echo ""
 }
 
@@ -86,7 +90,7 @@ function call_tc_allow_fail() {
 
 # Using external program "getopt" to get --long-options
 OPTIONS=$(getopt -o vfshd: \
-    --long verbose,dry-run,flush,stats,dev: -- "$@")
+    --long verbose,dry-run,flush,stats,icmp,dev:,port:,ip: -- "$@")
 if (( $? != 0 )); then
     err 2 "Error calling getopt"
 fi
@@ -118,6 +122,22 @@ while true; do
         -s | --stats )
           export STATS_ONLY=yes
 	  shift
+          ;;
+        --port )
+          export UDP_PORT=$2
+	  export NO_DEFAULT_DROP="defined"
+	  #info "Port set to: UDP_PORT=$UDP_PORT" >&2
+	  shift 2
+          ;;
+        --ip )
+          export IPADDR=$2
+	  export NO_DEFAULT_DROP="defined"
+	  shift 2
+          ;;
+        --icmp )
+          export ICMP=yes
+	  export NO_DEFAULT_DROP="defined"
+	  shift 1
           ;;
 	-- )
 	  shift
@@ -160,6 +180,34 @@ function tc_ingress_drop_icmp()
 	action drop
 }
 
+function tc_ingress_drop_udp()
+{
+    local device="$1"
+    local udp_port="$2"
+    shift 2
+    digit='^[0-9]+$'
+    if ! [[ $udp_port =~ $digit ]] ; then
+	err 5 "input error UDP port must be a digit"
+    fi
+    # Simple rule to drop specific UDP port
+    #
+    # WARNING: rule does not seem to work!!!
+    #call_tc filter add dev $device parent ffff: prio 4 protocol ip \
+#	u32 \
+#	match ip protocol 17 0xff \
+#	match udp dst 9 0xffff \
+#	flowid 1:1 \
+#	action drop
+
+    # Manually setting offset for matching UDP header
+    call_tc filter add dev $device parent ffff: prio 4 protocol ip \
+	u32 \
+	match ip protocol 17 0xff \
+	match udp dst 9 0xffff at 21\
+	flowid 1:1 \
+	action drop
+}
+
 function tc_ingress_drop_all()
 {
     local device="$1"
@@ -177,10 +225,11 @@ function tc_ingress_drop_ip()
 {
     local device="$1"
     local ip="$2"
+    shift 2
 
-    #b) drop if src is XXX
+    #b) drop dst IP
     call_tc filter add dev $device parent ffff: prio 2 protocol ip \
-	u32 match ip src $ip flowid 1:1 \
+	u32 match ip dst $ip flowid 1:1 \
 	action drop
 }
 
@@ -210,6 +259,22 @@ if [[ -n "$STATS_ONLY" ]]; then
     exit 0
 fi
 
-
+# Default always flush existing rules
 tc_ingress_flush $DEV
-tc_ingress_drop_all $DEV
+
+# Apply options selected drop rules
+if [[ -n "$UDP_PORT" ]]; then
+    tc_ingress_drop_udp $DEV "$UDP_PORT"
+fi
+if [[ -n "$ICMP" ]]; then
+    tc_ingress_drop_icmp $DEV
+fi
+if [[ -n "$IPADDR" ]]; then
+    tc_ingress_drop_ip $DEV $IPADDR
+fi
+
+
+# Only default drop all if not deselected by above options
+if [[ -z "$NO_DEFAULT_DROP" ]]; then
+    tc_ingress_drop_all $DEV
+fi
