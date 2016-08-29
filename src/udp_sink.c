@@ -385,7 +385,8 @@ int main(int argc, char *argv[])
 		run_flag = RUN_ALL;
 
 	/* Socket setup stuff */
-	sockfd = Socket(addr_family, SOCK_DGRAM, IPPROTO_IP);
+//	sockfd = Socket(addr_family, SOCK_DGRAM, IPPROTO_IP);
+	sockfd = Socket(addr_family, SOCK_DGRAM, IPPROTO_UDP);
 
 	/* Enable use of SO_REUSEPORT for multi-process testing  */
 	if (so_reuseport) {
