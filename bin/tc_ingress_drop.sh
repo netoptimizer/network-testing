@@ -32,11 +32,11 @@ root_check_run_with_sudo "$@"
 
 function usage() {
     echo ""
-    echo "Usage: $0 [-vd] -i ethX"
-    echo "  -i : (\$DEV)       ingress interface/device (required)"
-    echo "  -f : (\$FLUSH)     Only flush (remove TC drop rules)"
-    echo "  -v : (\$VERBOSE)   verbose"
-    echo "  -d : (\$DRYRUN)    dry-run only (echo tc commands)"
+    echo "Usage: $0 [-vfh] --dev ethX"
+    echo "  -d | --dev     : (\$DEV)       Ingress interface/device (required)"
+    echo "  -v | --verbose : (\$VERBOSE)   verbose"
+    echo "  --flush        : (\$FLUSH)     Only flush (remove TC drop rules)"
+    echo "  --dry-run      : (\$DRYRUN)    Dry-run only (echo tc commands)"
     echo ""
 }
 
@@ -73,32 +73,55 @@ function call_tc() {
     fi
 }
 
+# Using external program "getopt" to get --long-options
+OPTIONS=$(getopt -o vfshd: \
+    --long verbose,dry-run,flush,stats,dev: -- "$@")
+if (( $? != 0 )); then
+    err 2 "Error calling getopt"
+fi
+eval set -- "$OPTIONS"
+
 ##  --- Parse command line arguments / parameters ---
-while getopts "i:vdfh" option; do
-    case $option in
-        i) # interface
-          export DEV=$OPTARG
+while true; do
+    case "$1" in
+        -d | --dev ) # device
+          export DEV=$2
 	  info "Output device set to: DEV=$DEV" >&2
+	  shift 2
           ;;
-        v)
+        -v | --verbose)
           export VERBOSE=yes
-          info "Verbose mode: VERBOSE=$VERBOSE" >&2
+          # info "Verbose mode: VERBOSE=$VERBOSE" >&2
+	  shift
           ;;
-        d)
+        --dry-run )
           export DRYRUN=yes
           export VERBOSE=yes
           info "Dry-run mode: enable VERBOSE and don't call TC" >&2
+	  shift
           ;;
-        f)
+        -f | --flush )
           export FLUSH=yes
+	  shift
           ;;
-        h|?|*)
+        -s | --stats )
+          export STATS_ONLY=yes
+	  shift
+          ;;
+	-- )
+	  shift
+	  break
+	  ;;
+        -h )
           usage;
-          err 2 "[ERROR] Unknown parameters!!!"
+          err 4 "[ERROR] Unknown parameters!!!"
+	  ;;
+	* )
+	  shift
+	  break
+	  ;;
     esac
 done
-shift $(( $OPTIND - 1 ))
-
 
 if [ -z "$DEV" ]; then
     usage
@@ -153,14 +176,14 @@ function tc_ingress_drop_ip()
 function tc_ingress_stat1()
 {
     local device="$1"
-    # And display filter results with stats:
+    info "Display filter results with stats:"
     call_tc -s filter ls dev $device parent ffff: protocol ip
 }
 
 function tc_ingress_stat2()
 {
     local device="$1"
-    # And display filter results with stats:
+    info "Display filter results with stats:"
     call_tc -s actions ls action gact
 }
 
@@ -170,8 +193,12 @@ if [[ -n "$FLUSH" ]]; then
     exit 0
 fi
 
+if [[ -n "$STATS_ONLY" ]]; then
+    tc_ingress_stat1 $DEV
+    #tc_ingress_stat2 $DEV
+    exit 0
+fi
+
+
 tc_ingress_flush $DEV
 tc_ingress_drop_all $DEV
-
-tc_ingress_stat1 $DEV
-#tc_ingress_stat2 $DEV
