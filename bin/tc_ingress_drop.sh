@@ -59,7 +59,9 @@ function info() {
 }
 
 # Wrapper call for TC
-function call_tc() {
+function _call_tc() {
+    local allow_fail="$1"
+    shift
     if [[ -n "$VERBOSE" ]]; then
 	echo "tc $@"
     fi
@@ -69,9 +71,18 @@ function call_tc() {
     $TC "$@"
     local status=$?
     if (( $status != 0 )); then
-	err 3 "Exec error($status) occurred cmd: \"$TC $@\""
+	if [[ "$allow_fail" == "" ]]; then
+	    err 3 "Exec error($status) occurred cmd: \"$TC $@\""
+	fi
     fi
 }
+function call_tc() {
+    _call_tc "" "$@"
+}
+function call_tc_allow_fail() {
+    _call_tc "allow_fail" "$@"
+}
+
 
 # Using external program "getopt" to get --long-options
 OPTIONS=$(getopt -o vfshd: \
@@ -134,7 +145,7 @@ function tc_ingress_flush()
     shift
     info "Flush existing ingress qdisc on device :$device"
     # Delete existing ingress qdisc - flushes all filters/actions
-    call_tc qdisc del dev $device ingress
+    call_tc_allow_fail qdisc del dev $device ingress
     # re-add ingress
     call_tc qdisc add dev $device ingress
 }
@@ -189,7 +200,7 @@ function tc_ingress_stat2()
 
 if [[ -n "$FLUSH" ]]; then
     info "Clearing TC ingress drop rules"
-    tc_ingress_flush $DEV
+    call_tc_allow_fail qdisc del dev $DEV ingress
     exit 0
 fi
 
