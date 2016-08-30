@@ -101,7 +101,7 @@ while true; do
     case "$1" in
         -d | --dev ) # device
           export DEV=$2
-	  info "Output device set to: DEV=$DEV" >&2
+	  info "Ingress device set to: DEV=$DEV" >&2
 	  shift 2
           ;;
         -v | --verbose)
