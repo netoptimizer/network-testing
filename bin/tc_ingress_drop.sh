@@ -191,19 +191,34 @@ function tc_ingress_drop_udp()
     fi
     # Simple rule to drop specific UDP port
     #
-    # WARNING: rule does not seem to work!!!
-    #call_tc filter add dev $device parent ffff: prio 4 protocol ip \
+# WARNING: below rule does not seem to work, because "implicit"
+# nexthdr which "udp" depend on is not set.
+#
+#   call_tc filter add dev $device parent ffff: prio 4 protocol ip \
 #	u32 \
 #	match ip protocol 17 0xff \
-#	match udp dst 9 0xffff \
+#	match udp dst $udp_port 0xffff \
 #	flowid 1:1 \
 #	action drop
-
-    # Manually setting offset for matching UDP header
+#
+# This works, by manually setting offset for matching UDP header,
+# assuming no IP-options thus 20 bytes IP-header
+#
+#    call_tc filter add dev $device parent ffff: prio 4 protocol ip \
+#	u32 \
+#	match ip protocol 17 0xff \
+#	match udp dst $udp_port 0xffff at 21\
+#	flowid 1:1 \
+#	action drop
+#
+# Notice how below match use "ip dport" instead of "udp" per
+# recommentation by Jamal. Further reading: man page tc-u32(8) does
+# contain a warning about using this.
+#
     call_tc filter add dev $device parent ffff: prio 4 protocol ip \
 	u32 \
 	match ip protocol 17 0xff \
-	match udp dst 9 0xffff at 21\
+	match ip dport $udp_port 0xffff \
 	flowid 1:1 \
 	action drop
 }
