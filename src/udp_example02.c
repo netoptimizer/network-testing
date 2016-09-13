@@ -22,6 +22,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <stdlib.h>    /* atoi(3) */
+#include <stdbool.h>
 
 #include "common_socket.h"
 
@@ -63,10 +64,12 @@ int main(int argc, char *argv[])
 	struct in_pktinfo pktinfo;
 	int c, count = 1000000;
 	uint16_t listen_port = PORT;
+	bool tos_reflect = false;
 
-	while ((c = getopt(argc, argv, "c:l:")) != -1) {
+	while ((c = getopt(argc, argv, "tc:l:")) != -1) {
 		if (c == 'c') count = atoi(optarg);
 		if (c == 'l') listen_port  = atoi(optarg);
+		if (c == 't') tos_reflect = true;
 	}
 	printf("Listen port %d\n", listen_port);
 	memset(&addr, 0, sizeof(addr));
@@ -77,6 +80,8 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 	setsockopt(fd, SOL_IP, IP_PKTINFO, &on, sizeof(on));
+	if (tos_reflect)
+		setsockopt(fd, SOL_IP, IP_RECVTOS, &on, sizeof(on));
 
 	while (1) {
 		memset(&msghdr, 0, sizeof(msghdr));
