@@ -33,7 +33,8 @@
 #define RUN_SENDMMSG  0x2
 #define RUN_SENDTO    0x4
 #define RUN_WRITE     0x8
-#define RUN_ALL       (RUN_SENDMSG | RUN_SENDMMSG | RUN_SENDTO | RUN_WRITE)
+#define RUN_SEND      0xA
+#define RUN_ALL       (RUN_SENDMSG | RUN_SENDMMSG | RUN_SENDTO | RUN_WRITE | RUN_SEND)
 
 static const struct option long_options[] = {
 	{"help",	no_argument,		NULL, 'h' },
@@ -44,6 +45,7 @@ static const struct option long_options[] = {
 	{"sendmmsg",	no_argument,		NULL, 'U' },
 	{"sendto",	no_argument,		NULL, 't' },
 	{"write",	no_argument,		NULL, 'T' },
+	{"send",	no_argument,		NULL, 'S' },
 	{"batch",	required_argument,	NULL, 'b' },
 	{"count",	required_argument,	NULL, 'c' },
 	{"port",	required_argument,	NULL, 'p' },
@@ -89,7 +91,7 @@ static int usage(char *argv[])
 			       long_options[i].val);
 		printf("\n");
 	}
-	printf("     -u -U -t -T: run any combination of sendmsg/sendmmsg/sendto/write\n");
+	printf("     -u -U -t -T -S: run any combination of sendmsg/sendmmsg/sendto/write/send\n");
 	printf("         default: all tests\n");
 	printf("\n");
 
@@ -113,6 +115,32 @@ static int flood_with_sendto(int sockfd, struct sockaddr_storage *dest_addr,
 		if (res < 0) {
 			fprintf(stderr, "Managed to send %d packets\n", cnt);
 			perror("- sendto");
+			goto out;
+		}
+	}
+	res = cnt;
+
+out:
+	free(msg_buf);
+	return res;
+}
+
+static int flood_with_send(int sockfd, struct sockaddr_storage *dest_addr,
+			   int count, int msg_sz, int batch)
+{
+	char *msg_buf;
+	int cnt, res = 0;
+	int flags = 0;
+
+	/* Allocate payload buffer */
+	msg_buf = malloc_payload_buffer(msg_sz);
+
+	/* Flood loop */
+	for (cnt = 0; cnt < count; cnt++) {
+		res = send(sockfd, msg_buf, msg_sz, flags);
+		if (res < 0) {
+			fprintf(stderr, "Managed to send %d packets\n", cnt);
+			perror("- send");
 			goto out;
 		}
 	}
@@ -395,6 +423,7 @@ int main(int argc, char *argv[])
 		if (c == 'U') run_flag   |= RUN_SENDMMSG;
 		if (c == 't') run_flag   |= RUN_SENDTO;
 		if (c == 'T') run_flag   |= RUN_WRITE;
+		if (c == 'S') run_flag   |= RUN_SEND;
 		if (c == 'h' || c == '?') return usage(argv);
 	}
 	if (optind >= argc) {
@@ -428,6 +457,10 @@ int main(int argc, char *argv[])
 
 	if (!verbose)
 		printf("             \tns/pkt\tpps\t\ttsc_int\n");
+	if (run_flag & RUN_SEND) {
+		print_header("send", 0);
+		time_function(sockfd, &dest_addr, count, msg_sz, 0, flood_with_send);
+	}
 	if (run_flag & RUN_SENDTO) {
 		print_header("sendto", 0);
 		time_function(sockfd, &dest_addr, count, msg_sz, 0, flood_with_sendto);
