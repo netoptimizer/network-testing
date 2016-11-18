@@ -48,9 +48,28 @@ static const struct option long_options[] = {
 	{"count",	required_argument,	NULL, 'c' },
 	{"port",	required_argument,	NULL, 'p' },
 	{"payload",	required_argument,	NULL, 'm' },
+	{"pmtu",	required_argument,	NULL, 'd' },// IP_MTU_DISCOVER
 	{"verbose",	optional_argument,	NULL, 'v' },
 	{0, 0, NULL,  0 }
 };
+
+/* From: kernel/include/uapi/linux/ip.h */
+#if 0
+/* IP_MTU_DISCOVER values */
+#define IP_PMTUDISC_DONT		0	/* Never send DF frames */
+#define IP_PMTUDISC_WANT		1	/* Use per route hints	*/
+#define IP_PMTUDISC_DO			2	/* Always DF		*/
+#define IP_PMTUDISC_PROBE		3       /* Ignore dst pmtu      */
+/* Always use interface mtu (ignores dst pmtu) but don't set DF flag.
+ * Also incoming ICMP frag_needed notifications will be ignored on
+ * this socket to prevent accepting spoofed ones.
+ */
+#define IP_PMTUDISC_INTERFACE		4
+/* weaker version of IP_PMTUDISC_INTERFACE, which allos packets to get
+ * fragmented if they exeed the interface mtu
+ */
+#define IP_PMTUDISC_OMIT		5
+#endif
 
 static int usage(char *argv[])
 {
@@ -354,6 +373,7 @@ int main(int argc, char *argv[])
 	char *dest_ip;
 	int run_flag = 0;
 	int batch = 32;
+	int pmtu = -1; /* Path MTU Discovery setting, affect DF bit */
 	int longindex = 0;
 
 	/* Support for both IPv4 and IPv6 */
@@ -369,6 +389,7 @@ int main(int argc, char *argv[])
 		if (c == 'b') batch       = atoi(optarg);
 		if (c == '4') addr_family = AF_INET;
 		if (c == '6') addr_family = AF_INET6;
+		if (c == 'd') pmtu        = atoi(optarg);
 		if (c == 'v') verbose     = optarg ? atoi(optarg) : 1;
 		if (c == 'u') run_flag   |= RUN_SENDMSG;
 		if (c == 'U') run_flag   |= RUN_SENDMMSG;
@@ -389,6 +410,13 @@ int main(int argc, char *argv[])
 
 	/* Socket setup stuff */
 	sockfd = Socket(addr_family, SOCK_DGRAM, IPPROTO_IP);
+
+	if (pmtu != -1) {
+		if (verbose > 0)
+			printf("setsockopt IP_MTU_DISCOVER: %d\n",pmtu);
+		setsockopt(sockfd, SOL_IP, IP_MTU_DISCOVER,
+			   &pmtu, sizeof(pmtu));
+	}
 
 	/* Setup dest_addr depending on IPv4 or IPv6 address */
 	setup_sockaddr(addr_family, &dest_addr, dest_ip, dest_port);
