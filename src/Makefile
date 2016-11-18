@@ -7,7 +7,7 @@ SRCS =  ipv6_example01.c udp_example02.c udp_echo.c udp_client_echo.c \
 	tcp_sink.c tcp_sink_client.c \
 	tcp_sink_epoll.c \
 	array_compare01.c \
-	burn_cpu.c \
+	burn_cpu.c udp_snd.c \
 	syscall_overhead.c overhead_cmpxchg.c
 
 OBJECTS = common_socket.o common.o

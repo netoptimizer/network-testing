@@ -26,13 +26,14 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <arpa/inet.h>
 
 char buffer[1400];
 
 int main(int argc, char** argv) {
 	int fd, i;
 	struct sockaddr_in6 addr;
-	char *host = "2002:af6:798::1";
+	char *host = NULL;
 	int family = AF_INET6;
 	int discover = -1;
 
@@ -42,6 +43,13 @@ int main(int argc, char** argv) {
 		case '4': family = AF_INET; break;
 		case 'd': discover = atoi(optarg); break;
 		}
+	}
+	if (!host) {
+		fprintf(stderr, "Please specify destination host\n");
+		fprintf(stderr, "(Notice default uses IPv6)\n");
+		fprintf(stderr, " Usage: %s -H host <-d pmtu> <-4>\n",
+				argv[0]);
+		return 2;
 	}
 	fd = socket(family, SOCK_DGRAM, 0);
 	if (fd < 0)
