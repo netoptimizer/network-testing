@@ -1,5 +1,5 @@
 /* -*- c-file-style: "linux" -*-
- * Author: Jesper Dangaard Brouer <netoptimizer@brouer.com>, (C)2014
+ * Author: Jesper Dangaard Brouer <netoptimizer@brouer.com>, (C)2014-2016
  * License: GPLv2
  * From: https://github.com/netoptimizer/network-testing
  *
@@ -21,6 +21,7 @@
 #include <arpa/inet.h>
 #include <sys/uio.h> /* struct iovec */
 #include <errno.h>
+#include <stdbool.h>
 
 #include <getopt.h>
 
@@ -53,6 +54,7 @@ static const struct option long_options[] = {
 	{"payload",	required_argument,	NULL, 'm' },
 	{"repeat",	required_argument,	NULL, 'r' },
 	{"verbose",	optional_argument,	NULL, 'v' },
+	{"connect",	optional_argument,	NULL, 'C' },
 	{0, 0, NULL,  0 }
 };
 
@@ -286,30 +288,73 @@ static int sink_with_recvMmsg(int sockfd, int count, int batch) {
 
 
 static void time_function(int sockfd, int count, int repeat, int batch,
+			  bool do_connect,
 			  int (*func)(int sockfd, int count, int batch))
 {
 	uint64_t tsc_begin,  tsc_end,  tsc_interval, tsc_cycles;
 	uint64_t time_begin, time_end, time_interval;
+	char from_ip[INET6_ADDRSTRLEN] = {0}; /* Assume max IPv6 */
+	int str_max = sizeof(from_ip);
 	int cnt_recv, j;
 	double pps, ns_per_pkt, timesec;
 	#define TMPMAX 4096
 	char buffer[TMPMAX];
 	int res;
 
-	//WAIT on first packet of flood
+	/* Support for both IPv4 and IPv6.
+	 * "storage" can contain both sockaddr_in and sockaddr_in6
+	 */
+	struct sockaddr_storage src_store;
+	struct sockaddr *src = (struct sockaddr *)&src_store;
+	socklen_t addrlen = sizeof(src_store); /* updated by recvfrom */
+	struct sockaddr_in  *ipv4 = NULL;
+	struct sockaddr_in6 *ipv6 = NULL;
+	__be16 src_port = 0;
+	void *addr_ptr = NULL;
+	int flags = 0;
+
+	/* WAIT on first packet of flood */
 	if (verbose)
 		printf(" - Waiting on first packet (of expected flood)\n");
-	res = read(sockfd, buffer, TMPMAX);
-	if (res < 0) {
-		fprintf(stderr, "ERROR: %s() failed (%d) errno(%d) ",
-			__func__, res, errno);
-		perror("- read");
-		close(sockfd);
-		exit(EXIT_FAIL_SOCK);
-	}
 
-	if (verbose)
-		printf("  * Got first packet (starting timing)\n");
+	/* Using recvfrom to get remote src info for connect() */
+	res = recvfrom(sockfd, buffer, TMPMAX, flags, src, &addrlen);
+	if (res < 0) {
+		perror("- read");
+		goto socket_error;
+	}
+	switch (src->sa_family) {
+	case AF_INET:
+		ipv4 = (struct sockaddr_in *)src;
+		addr_ptr = (void *)&ipv4->sin_addr;
+		src_port = ipv4->sin_port;
+		break;
+	case AF_INET6:
+		ipv6 = (struct sockaddr_in6 *)src;
+		addr_ptr = (void *)&ipv6->sin6_addr;
+		src_port = ipv6->sin6_port;
+		break;
+	default:
+		fprintf(stderr, "ERROR: %s() "
+			"unsupported sa_family(%d) from socket errno(%d)\n",
+			__func__, src->sa_family, errno);
+		close(sockfd);
+		exit(EXIT_FAIL_RECV);
+	}
+	if (!inet_ntop(src->sa_family, addr_ptr, from_ip, str_max)) {
+		perror("- inet_ntop");
+		goto socket_error;
+	}
+	if (verbose && !do_connect)
+		printf("  * Got first packet from IP:port %s:%d\n",
+		       from_ip, ntohs(src_port));
+
+	if (do_connect) {
+		if (verbose)
+			printf("  * Connect UDP sock to src IP:port %s:%d\n",
+			       from_ip, ntohs(src_port));
+		Connect(sockfd, src, addrlen);
+	}
 
 	for (j = 0; j < repeat; j++) {
 		if (verbose) {
@@ -341,6 +386,13 @@ static void time_function(int sockfd, int count, int repeat, int batch,
 		print_result(tsc_cycles, ns_per_pkt, pps, timesec,
 			     cnt_recv, tsc_interval);
 	}
+	return;
+
+socket_error:
+	fprintf(stderr, "ERROR: %s() failed (%d) errno(%d) ",
+		__func__, res, errno);
+	close(sockfd);
+	exit(EXIT_FAIL_SOCK);
 }
 
 int main(int argc, char *argv[])
@@ -353,15 +405,16 @@ int main(int argc, char *argv[])
 	/* Default settings */
 	int addr_family = AF_INET; /* Default address family */
 	uint16_t listen_port = 6666;
+	bool do_connect = 0;
+	int longindex = 0;
 	int run_flag = 0;
 	int batch = 32;
-	int longindex = 0;
 
 	/* Support for both IPv4 and IPv6 */
 	struct sockaddr_storage listen_addr; /* Can contain both sockaddr_in and sockaddr_in6 */
 
 	/* Parse commands line args */
-	while ((c = getopt_long(argc, argv, "hc:r:l:64sv:tTuUb:",
+	while ((c = getopt_long(argc, argv, "hc:r:l:64sCv:tTuUb:",
 				long_options, &longindex)) != -1) {
 		if (c == 'c') count       = atoi(optarg);
 		if (c == 'r') repeat      = atoi(optarg);
@@ -370,6 +423,7 @@ int main(int argc, char *argv[])
 		if (c == '4') addr_family = AF_INET;
 		if (c == '6') addr_family = AF_INET6;
 		if (c == 's') so_reuseport= 1;
+		if (c == 'C') do_connect  = 1;
 		if (c == 'v') verbose     = optarg ? atoi(optarg) : 1;
 		if (c == 'u') run_flag   |= RUN_RECVMSG;
 		if (c == 'U') run_flag   |= RUN_RECVMMSG;
@@ -415,22 +469,26 @@ int main(int argc, char *argv[])
 
 	if (run_flag & RUN_RECVMMSG) {
 		print_header("recvMmsg", batch);
-		time_function(sockfd, count, repeat, batch, sink_with_recvMmsg);
+		time_function(sockfd, count, repeat, batch, do_connect,
+			      sink_with_recvMmsg);
 	}
 
 	if (run_flag & RUN_RECVMSG) {
 		print_header("recvmsg", 0);
-		time_function(sockfd, count, repeat, 1, sink_with_recvmsg);
+		time_function(sockfd, count, repeat, 1, do_connect,
+			      sink_with_recvmsg);
 	}
 
 	if (run_flag & RUN_READ) {
 		print_header("read", 0);
-		time_function(sockfd, count, repeat, 0, sink_with_read);
+		time_function(sockfd, count, repeat, 0, do_connect,
+			      sink_with_read);
 	}
 
 	if (run_flag & RUN_RECVFROM) {
 		print_header("recvfrom", 0);
-		time_function(sockfd, count, repeat, 0, sink_with_recvfrom);
+		time_function(sockfd, count, repeat, 0, do_connect,
+			      sink_with_recvfrom);
 	}
 
 	close(sockfd);
