@@ -16,6 +16,7 @@
 
 #include <errno.h>
 #include <error.h>
+#include <time.h>
 #include <linux/errqueue.h>
 #include <netinet/in.h>
 #include <sched.h>
