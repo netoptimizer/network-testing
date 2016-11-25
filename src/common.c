@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h> /* memset */
+#include <errno.h>
 
 #include "global.h"
 
@@ -103,6 +104,36 @@ int time_func(int loops,
 
 	return 0;
 }
+
+int read_ip_early_demux(void)
+{
+	char buf[20] = {0};
+	int value, res;
+	FILE *file;
+
+	file = fopen("/proc/sys/net/ipv4/ip_early_demux", "r");
+	if (file == NULL) {
+		fprintf(stderr,
+			"WARN: cannot read ip_early_demux errno(%d) ", errno);
+		perror("- fopen");
+		return 0;
+	}
+
+	if (!fgets(buf, sizeof(buf), file)) {
+		perror("fgets");
+		exit(EXIT_FAIL_FILEACCESS);
+	}
+	res = sscanf(buf,"%u",&value);
+	if (res != 1) {
+		fprintf(stderr,
+			"ERROR: cannot parse ip_early_demux errno(%d) ", errno);
+		if (res == EOF)
+			perror("sscanf");
+		exit(EXIT_FAIL_FILEACCESS);
+	}
+	return value;
+}
+
 
 void print_result(uint64_t tsc_cycles, double ns_per_pkt, double pps,
 		  double timesec, int cnt_send, uint64_t tsc_interval)
