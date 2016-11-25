@@ -15,7 +15,7 @@
 
 #include "global.h"
 
-int verbose = 1;
+int verbose = 0;
 
 /* Time code based on:
  *  https://github.com/dterei/Scraps/tree/master/c/time
