@@ -1,12 +1,15 @@
 /* -*- c-file-style: "linux" -*-
- * Author: Jesper Dangaard Brouer <netoptimizer@brouer.com>, (C)2014
+ * Author: Jesper Dangaard Brouer <netoptimizer@brouer.com>, (C)2014-2016
  * License: GPLv2
  * From: https://github.com/netoptimizer/network-testing
- *
- * UDP flood program
- *  for testing performance of different send system calls
- *
  */
+static const char *__doc__=
+ " This tool is a UDP flood that measures the outgoing packet rate.\n"
+ " Default cycles through tests with different send system calls.\n"
+ " What function-call to invoke can also be specified as a command\n"
+ " line option (see below).\n"
+ ;
+
 #define _GNU_SOURCE /* needed for struct mmsghdr and getopt.h */
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -89,11 +92,16 @@ static const char *pmtu_to_string(int pmtu)
 	return NULL;
 }
 
+#define DEFAULT_COUNT 1000000
+
 static int usage(char *argv[])
 {
 	int i;
 
-	printf("-= ERROR: Parameter problems =-\n");
+	printf("\nDOCUMENTATION:\n%s\n", __doc__);
+	printf(" Default transmit %d packets per test, adjust via --count\n",
+	       DEFAULT_COUNT);
+	printf("\n");
 	printf(" Usage: %s (options-see-below) IPADDR\n",
 	       argv[0]);
 	printf(" Listing options:\n");
@@ -421,7 +429,7 @@ int main(int argc, char *argv[])
 
 	/* Default settings */
 	int addr_family = AF_INET; /* Default address family */
-	int count = 1000000;
+	int count = DEFAULT_COUNT;
 	int msg_sz = 18; /* 18 +14(eth)+8(UDP)+20(IP)+4(Eth-CRC) = 64 bytes */
 	uint16_t dest_port = 6666;
 	char *dest_ip;

@@ -3,7 +3,7 @@
  * License: GPLv2
  * From: https://github.com/netoptimizer/network-testing
  */
-static char *__doc__=
+static const char *__doc__=
  " This tool is a UDP sink that measures the incoming packet rate,\n"
  " it expects a continuous flow of UDP packets (up to --count per test).\n"
  " Default it cycles through different ways/function-calls to\n"
