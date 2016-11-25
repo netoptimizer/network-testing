@@ -72,6 +72,22 @@ static const struct option long_options[] = {
  */
 #define IP_PMTUDISC_OMIT		5
 #endif
+#define IP_PMTUDISC_MAX	(IP_PMTUDISC_OMIT + 1)
+
+static const char *ip_mtu_discover_names[IP_PMTUDISC_MAX] = {
+	[IP_PMTUDISC_DONT]	= "IP_PMTUDISC_DONT",
+	[IP_PMTUDISC_WANT]	= "IP_PMTUDISC_WANT",
+	[IP_PMTUDISC_DO]	= "IP_PMTUDISC_DO",
+	[IP_PMTUDISC_PROBE]	= "IP_PMTUDISC_PROBE",
+	[IP_PMTUDISC_INTERFACE]	= "IP_PMTUDISC_INTERFACE",
+	[IP_PMTUDISC_OMIT]	= "IP_PMTUDISC_OMIT",
+};
+static const char *pmtu_to_string(int pmtu)
+{
+	if (pmtu < IP_PMTUDISC_MAX)
+		return ip_mtu_discover_names[pmtu];
+	return NULL;
+}
 
 static int usage(char *argv[])
 {
@@ -82,17 +98,27 @@ static int usage(char *argv[])
 	       argv[0]);
 	printf(" Listing options:\n");
 	for (i = 0; long_options[i].name != 0; i++) {
-		printf(" --%s", long_options[i].name);
+		printf(" --%-12s", long_options[i].name);
 		if (long_options[i].flag != NULL)
-			printf("\t\t flag (internal value:%d)",
+			printf(" flag (internal value:%d)",
 			       *long_options[i].flag);
 		else
-			printf("\t\t short-option: -%c",
+			printf(" short-option: -%c",
 			       long_options[i].val);
 		printf("\n");
 	}
-	printf("     -u -U -t -T -S: run any combination of sendmsg/sendmmsg/sendto/write/send\n");
-	printf("         default: all tests\n");
+	printf("\n Multiple tests can be selected:\n");
+	printf("     default: all tests\n");
+	printf("     -u -U -t -T -S: run any combination of"
+		       " sendmsg/sendmmsg/sendto/write/send\n");
+	printf("\n");
+	printf("Option --pmtu <N>  for Path MTU discover socket option"
+	       " IP_MTU_DISCOVER\n"
+	       " This affects the DF(Don't-Fragment) bit setting.\n"
+	       " Following values are selectable:\n");
+	for (i = 0; i < IP_PMTUDISC_MAX; i++)
+		printf("  %d = %s\n", i, pmtu_to_string(i));
+	printf(" Documentation see under IP_MTU_DISCOVER in 'man 7 ip'\n");
 	printf("\n");
 
 	return EXIT_FAIL_OPTION;
@@ -442,7 +468,8 @@ int main(int argc, char *argv[])
 
 	if (pmtu != -1) {
 		if (verbose > 0)
-			printf("setsockopt IP_MTU_DISCOVER: %d\n",pmtu);
+			printf("setsockopt IP_MTU_DISCOVER: %s(%d)\n",
+			       pmtu_to_string(pmtu), pmtu);
 		setsockopt(sockfd, SOL_IP, IP_MTU_DISCOVER,
 			   &pmtu, sizeof(pmtu));
 	}
