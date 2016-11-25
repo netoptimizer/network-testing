@@ -5,7 +5,7 @@
  */
 static char *__doc__=
  " This tool is a UDP sink that measures the incoming packet rate,\n"
- " it expects a continuous/unlimited flow of UDP packets.\n"
+ " it expects a continuous flow of UDP packets (up to --count per test).\n"
  " Default it cycles through different ways/function-calls to\n"
  " receive packets.  What function-call to invoke can also be\n"
  " specified as a command line option (see below)\n"
@@ -62,11 +62,15 @@ static const struct option long_options[] = {
 	{0, 0, NULL,  0 }
 };
 
+#define DEFAULT_COUNT 1000000
+
 static int usage(char *argv[])
 {
 	int i;
 	printf("\nDOCUMENTATION:\n%s\n", __doc__);
-
+	printf(" Default receives %d packets per test, adjust via --count\n",
+	       DEFAULT_COUNT);
+	printf("\n");
 	printf(" Usage: %s (options-see-below)\n",
 	       argv[0]);
 	printf(" Listing options:\n");
@@ -82,7 +86,8 @@ static int usage(char *argv[])
 	}
 	printf("\n Multiple tests can be selected:\n");
 	printf("     default: all tests\n");
-	printf("     -u -U -t -T: run any combination of recvmsg/recvmmsg/recvfrom/read\n");
+	printf("     -u -U -t -T: run any combination of"
+			" recvmsg/recvmmsg/recvfrom/read\n");
 	printf("\n");
 
 	return EXIT_FAIL_OPTION;
@@ -403,7 +408,7 @@ socket_error:
 int main(int argc, char *argv[])
 {
 	int sockfd, c;
-	int count  = 1000000;
+	int count  = DEFAULT_COUNT;
 	int repeat = 1;
 	int so_reuseport = 0;
 
