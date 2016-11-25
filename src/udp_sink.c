@@ -2,11 +2,14 @@
  * Author: Jesper Dangaard Brouer <netoptimizer@brouer.com>, (C)2014-2016
  * License: GPLv2
  * From: https://github.com/netoptimizer/network-testing
- *
- * UDP sink program
- *  for testing performance of different receive system calls
- *
  */
+static char *__doc__=
+ " This tool is a UDP sink that measures the incoming packet rate,\n"
+ " it expects a continuous/unlimited flow of UDP packets.\n"
+ " Default it cycles through different ways/function-calls to\n"
+ " receive packets.  What function-call to invoke can also be\n"
+ " specified as a command line option (see below)\n"
+ ;
 
 #define _GNU_SOURCE /* needed for struct mmsghdr and getopt.h */
 #include <sys/socket.h>
@@ -39,15 +42,16 @@
 #define RUN_ALL       (RUN_RECVMSG | RUN_RECVMMSG | RUN_RECVFROM | RUN_READ)
 
 static const struct option long_options[] = {
+	/* keep recv functions grouped together */
+	{"read",	no_argument,		NULL, 'T' },
+	{"recvfrom",	no_argument,		NULL, 't' },
+	{"recvmsg",	no_argument,		NULL, 'u' },
+	{"recvmmsg",	no_argument,		NULL, 'U' },
+	/* Other options */
 	{"help",	no_argument,		NULL, 'h' },
 	{"ipv4",	no_argument,		NULL, '4' },
 	{"ipv6",	no_argument,		NULL, '6' },
 	{"reuse-port",	no_argument,		NULL, 's' },
-	/* keep these grouped together */
-	{"recvmsg",	no_argument,		NULL, 'u' },
-	{"recvmmsg",	no_argument,		NULL, 'U' },
-	{"recvfrom",	no_argument,		NULL, 't' },
-	{"read",	no_argument,		NULL, 'T' },
 	{"batch",	required_argument,	NULL, 'b' },
 	{"count",	required_argument,	NULL, 'c' },
 	{"port",	required_argument,	NULL, 'l' },
@@ -61,23 +65,24 @@ static const struct option long_options[] = {
 static int usage(char *argv[])
 {
 	int i;
+	printf("\nDOCUMENTATION:\n%s\n", __doc__);
 
-	printf("-= ERROR: Parameter problems =-\n");
 	printf(" Usage: %s (options-see-below)\n",
 	       argv[0]);
 	printf(" Listing options:\n");
 	for (i = 0; long_options[i].name != 0; i++) {
-		printf(" --%s", long_options[i].name);
+		printf(" --%-12s", long_options[i].name);
 		if (long_options[i].flag != NULL)
-			printf("\t\t flag (internal value:%d)",
+			printf(" flag (internal value:%d)",
 			       *long_options[i].flag);
 		else
-			printf("\t\t short-option: -%c",
+			printf(" short-option: -%c",
 			       long_options[i].val);
 		printf("\n");
 	}
+	printf("\n Multiple tests can be selected:\n");
+	printf("     default: all tests\n");
 	printf("     -u -U -t -T: run any combination of recvmsg/recvmmsg/recvfrom/read\n");
-	printf("         default: all tests\n");
 	printf("\n");
 
 	return EXIT_FAIL_OPTION;
