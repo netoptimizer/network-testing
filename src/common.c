@@ -113,7 +113,8 @@ void print_result(uint64_t tsc_cycles, double ns_per_pkt, double pps,
 		       tsc_cycles, ns_per_pkt, pps, timesec,
 		       cnt_send, tsc_interval);
 	} else {
-		printf("%.2f\t%.2f\t%lu\n", ns_per_pkt, pps, tsc_interval);
+		printf("%.2f\t%.2f\t%lu\t%lu\n",
+		       ns_per_pkt, pps, tsc_cycles, tsc_interval);
 	}
 }
 
