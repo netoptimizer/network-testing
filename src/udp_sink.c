@@ -404,7 +404,7 @@ int main(int argc, char *argv[])
 {
 	int sockfd, c;
 	int count  = 1000000;
-	int repeat = 2;
+	int repeat = 1;
 	int so_reuseport = 0;
 
 	/* Default settings */
