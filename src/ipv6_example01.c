@@ -55,7 +55,8 @@ int main(int argc, char *argv[])
 		printf("- Waiting on recvfrom()\n");
 		n = recvfrom(sock,buf,1024,0,(struct sockaddr *)&from,&fromlen);
 		if (n < 0) error("recvfrom");
-		if (!inet_ntop(AF_INET6, (void*)&from.sin6_addr, ipv6, 42))
+		if (!inet_ntop(AF_INET6, (void*)&from.sin6_addr,
+			       ipv6, sizeof(ipv6)))
 			error("inet_ntop");
 		else
 			printf("From (from.sin6_addr) = %s\n", ipv6);
