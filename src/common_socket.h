@@ -11,6 +11,14 @@
 #include <stdint.h> /* types uintXX_t */
 #include <netinet/in.h> /* sockaddr_in{,6} */
 
+#ifndef IP_PMTUDISC_OMIT
+#define IP_PMTUDISC_OMIT 5
+#endif
+
+#ifndef IP_PMTUDISC_INTERFACE
+#define IP_PMTUDISC_INTERFACE 4
+#endif
+
 #ifndef SO_REUSEPORT
 #define SO_REUSEPORT    15
 #endif
