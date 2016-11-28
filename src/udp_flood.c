@@ -36,7 +36,7 @@ static const char *__doc__=
 #define RUN_SENDMMSG  0x2
 #define RUN_SENDTO    0x4
 #define RUN_WRITE     0x8
-#define RUN_SEND      0xA
+#define RUN_SEND      0x10
 #define RUN_ALL       (RUN_SENDMSG | RUN_SENDMMSG | RUN_SENDTO | RUN_WRITE | RUN_SEND)
 
 static const struct option long_options[] = {
