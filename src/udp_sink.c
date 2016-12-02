@@ -48,10 +48,12 @@ struct sink_params {
 	int count;
 	int repeat;
 	int waitforone;
+	int dontwait;
 	int sk_timeout;
 	int timeout;
 	int check;
 	int connect;
+	struct sockaddr_storage sender_addr;
 	int so_reuseport;
 	int buf_sz;
 	long long ooo;
@@ -75,7 +77,9 @@ static const struct option long_options[] = {
 	{"sk-timeout",	required_argument,	NULL, 'I' },
 	{"check-pktgen",no_argument,		NULL, 0 },
 	{"nr-iovec",	required_argument,	NULL, 0 },
+	{"check-sender",required_argument,	NULL, 'S' },
 	{"lite",	no_argument,		NULL, 'L' },
+	{"dontwait",	no_argument,		NULL, 'd' },
 	{"batch",	required_argument,	NULL, 'b' },
 	{"count",	required_argument,	NULL, 'c' },
 	{"port",	required_argument,	NULL, 'l' },
@@ -244,9 +248,10 @@ static int sink_with_recvfrom(int sockfd, struct sink_params *p) {
 	int i, res;
 	uint64_t total = 0;
 	char *buffer = malloc_payload_buffer(p->buf_sz);
+	int flags = p->dontwait ? MSG_DONTWAIT : 0;
 
 	for (i = 0; i < p->count; i++) {
-		res = recvfrom(sockfd, buffer, p->buf_sz, 0, NULL, NULL);
+		res = recvfrom(sockfd, buffer, p->buf_sz, flags, NULL, NULL);
 		if (res < 0)
 			goto error;
 		total += res;
@@ -267,6 +272,53 @@ static int sink_with_recvfrom(int sockfd, struct sink_params *p) {
 	exit(EXIT_FAIL_SOCK);
 }
 
+static void setup_msg_name(struct msghdr *msg_hdr,
+			   struct sockaddr_storage *addr, int family)
+{
+	if (!family) {
+		/* we don't care about the senders info */
+		msg_hdr->msg_name    = NULL;
+		msg_hdr->msg_namelen = 0;
+		return;
+	}
+
+	msg_hdr->msg_name = addr;
+	msg_hdr->msg_namelen = sizeof(*addr);
+}
+
+static void check_msg_name(struct msghdr *msg_hdr,
+			   struct sockaddr_storage *sender_addr)
+{
+	char snd_str[128], in_str[128];
+	void *snd, *in;
+	int len, alen;
+
+	if (!sender_addr->ss_family)
+		return;
+
+	if (sender_addr->ss_family == AF_INET) {
+		in = &((struct sockaddr_in *)msg_hdr->msg_name)->sin_addr;
+		snd = &((struct sockaddr_in *)sender_addr)->sin_addr;
+		len = sizeof(struct in_addr);
+		alen = sizeof(struct sockaddr_in);
+	} else {
+		in = &((struct sockaddr_in6 *)msg_hdr->msg_name)->sin6_addr;
+		snd = &((struct sockaddr_in6 *)sender_addr)->sin6_addr;
+		len = sizeof(struct in6_addr);
+		alen = sizeof(struct sockaddr_in6);
+	}
+
+	if (alen != msg_hdr->msg_namelen) {
+		printf("sender address len %d does not match expected one %d\n",
+		       msg_hdr->msg_namelen, alen);
+		exit(EXIT_FAIL_SOCK);
+	} else if (memcmp(snd, in, len)) {
+		printf("sender address %s does not match expected one %s\n",
+		       inet_ntop(sender_addr->ss_family, in, in_str, 128),
+		       inet_ntop(sender_addr->ss_family, snd, snd_str, 128));
+		exit(EXIT_FAIL_SOCK);
+	}
+}
 
 static int sink_with_recvmsg(int sockfd, struct sink_params *p) {
 	int i, res;
@@ -274,14 +326,14 @@ static int sink_with_recvmsg(int sockfd, struct sink_params *p) {
 	char *buffer = malloc_payload_buffer(p->buf_sz);
 	struct msghdr *msg_hdr;  /* struct for setting up transmit */
 	struct iovec  *msg_iov;  /* io-vector: array of pointers to payload data */
+	int flags = p->dontwait ? MSG_DONTWAIT : 0;
+	struct sockaddr_storage sender;
 
 	msg_hdr = malloc_msghdr();               /* Alloc msghdr setup structure */
 	msg_iov = malloc_iovec(p->iov_elems); /* Alloc I/O vector array */
 
 	/*** Setup packet structure for receiving ***/
-	/* The senders info is stored here but we don't care, so use NULL */
-	msg_hdr->msg_name    = NULL;
-	msg_hdr->msg_namelen = 0;
+	setup_msg_name(msg_hdr, &sender, p->sender_addr.ss_family);
 	/* Setup io-vector pointers for receiving payload data */
 	msg_iov[0].iov_base = buffer;
 	msg_iov[0].iov_len  = p->buf_sz / p->iov_elems;
@@ -304,11 +356,12 @@ static int sink_with_recvmsg(int sockfd, struct sink_params *p) {
 
 	/* Receive LOOP */
 	for (i = 0; i < p->count; i++) {
-		res = recvmsg(sockfd, msg_hdr, 0);
+		res = recvmsg(sockfd, msg_hdr, flags);
 		if (res < 0)
 			goto error;
 
 		check_pkt(msg_iov, p->iov_elems, res, p);
+		check_msg_name(msg_hdr, &p->sender_addr);
 
 		total += res;
 	}
@@ -348,11 +401,13 @@ static int sink_with_recvmsg(int sockfd, struct sink_params *p) {
 
 static int sink_with_recvMmsg(int sockfd, struct sink_params *p) {
 	int cnt, i, res, pkt, batches = 0;
-	uint64_t total = 0, packets, flags;
+	uint64_t total = 0, packets;
 	char *buffer = malloc_payload_buffer(p->buf_sz);
 	struct iovec  *msg_iov;  /* io-vector: array of pointers to payload data */
 	struct timespec __ts, ___ts = { .tv_sec = p->timeout, .tv_nsec = 0};
 	struct timespec *ts = NULL;
+	int flags = p->dontwait ? MSG_DONTWAIT : 0;
+	struct sockaddr_storage sender[p->batch];
 
 	/* struct *mmsghdr -  pointer to an array of mmsghdr structures.
 	 *   *** Notice: double "m" in mmsghdr ***
@@ -376,9 +431,8 @@ static int sink_with_recvMmsg(int sockfd, struct sink_params *p) {
 			msg_iov[pkt*p->iov_elems+i].iov_len  = size;
 		}
 
-		/* The senders info is stored here but we don't care, so use NULL */
-		mmsg_hdr[pkt].msg_hdr.msg_name    = NULL;
-		mmsg_hdr[pkt].msg_hdr.msg_namelen = 0;
+		setup_msg_name(&mmsg_hdr[pkt].msg_hdr, &sender[pkt],
+			       p->sender_addr.ss_family);
 		/* Binding io-vector to packet setup struct */
 		mmsg_hdr[pkt].msg_hdr.msg_iov    = &msg_iov[pkt*p->iov_elems];
 		mmsg_hdr[pkt].msg_hdr.msg_iovlen = p->iov_elems;
@@ -387,7 +441,7 @@ static int sink_with_recvMmsg(int sockfd, struct sink_params *p) {
 	if (p->timeout >= 0)
 		ts = &__ts;
 
-	flags = p->waitforone ? MSG_WAITFORONE: 0;
+	flags |= p->waitforone ? MSG_WAITFORONE: 0;
 
 	/* Receive LOOP */
 	for (cnt = 0; cnt < p->count; ) {
@@ -401,6 +455,7 @@ static int sink_with_recvMmsg(int sockfd, struct sink_params *p) {
 			check_pkt(mmsg_hdr[pkt].msg_hdr.msg_iov,
 				  mmsg_hdr[pkt].msg_hdr.msg_iovlen,
 				  mmsg_hdr[pkt].msg_len, p);
+			check_msg_name(&mmsg_hdr[pkt].msg_hdr, &p->sender_addr);
 		}
 		cnt += res;
 	}
@@ -578,7 +633,7 @@ int main(int argc, char *argv[])
 	init_params(&p);
 
 	/* Parse commands line args */
-	while ((c = getopt_long(argc, argv, "hc:r:l:64Oi:I:LsC:v:tTuUb:",
+	while ((c = getopt_long(argc, argv, "hc:r:l:64Oi:I:LdsCS:v:tTuUb:",
 				long_options, &longindex)) != -1) {
 		if (c == 0) {
 			/* handle options without short version */
@@ -599,8 +654,11 @@ int main(int argc, char *argv[])
 		if (c == 'i') p.timeout     = atoi(optarg);
 		if (c == 'I') p.sk_timeout  = atoi(optarg);
 		if (c == 'L') p.lite      = 1;
+		if (c == 'd') p.dontwait  = 1;
 		if (c == 's') p.so_reuseport= 1;
 		if (c == 'C') p.connect  = 1;
+		if (c == 'S') setup_sockaddr(addr_family, &p.sender_addr,
+					     optarg, 0);
 		if (c == 'v') verbose     = optarg ? atoi(optarg) : 1;
 		if (c == 'u') run_flag   |= RUN_RECVMSG;
 		if (c == 'U') run_flag   |= RUN_RECVMMSG;
