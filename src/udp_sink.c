@@ -49,6 +49,7 @@ struct sink_params {
 	int repeat;
 	int waitforone;
 	int dontwait;
+	int bad_addr;
 	int sk_timeout;
 	int timeout;
 	int check;
@@ -80,6 +81,7 @@ static const struct option long_options[] = {
 	{"check-sender",required_argument,	NULL, 'S' },
 	{"lite",	no_argument,		NULL, 'L' },
 	{"dontwait",	no_argument,		NULL, 'd' },
+	{"use-bad-ptr",	required_argument,	NULL, 'B' },
 	{"batch",	required_argument,	NULL, 'b' },
 	{"count",	required_argument,	NULL, 'c' },
 	{"port",	required_argument,	NULL, 'l' },
@@ -422,9 +424,13 @@ static int sink_with_recvMmsg(int sockfd, struct sink_params *p) {
 	/*** Setup packet structure for receiving
 	 ***/
 	for (pkt = 0; pkt < p->batch; pkt++) {
-		char *buf = malloc(p->buf_sz);
 		int size = p->buf_sz / p->iov_elems;
+		char *buf;
 
+		if (p->bad_addr && (pkt == (p->bad_addr - 1)))
+			buf = NULL;
+		else
+			buf = malloc(p->buf_sz);
 		/* Setup io-vector pointers for receiving payload data */
 		for (i = 0; i < p->iov_elems; i++) {
 			msg_iov[pkt*p->iov_elems+i].iov_base = buf + size*i;
@@ -633,7 +639,7 @@ int main(int argc, char *argv[])
 	init_params(&p);
 
 	/* Parse commands line args */
-	while ((c = getopt_long(argc, argv, "hc:r:l:64Oi:I:LdsCS:v:tTuUb:",
+	while ((c = getopt_long(argc, argv, "hc:r:l:64Oi:I:LdsCS:B:v:tTuUb:",
 				long_options, &longindex)) != -1) {
 		if (c == 0) {
 			/* handle options without short version */
@@ -655,6 +661,7 @@ int main(int argc, char *argv[])
 		if (c == 'I') p.sk_timeout  = atoi(optarg);
 		if (c == 'L') p.lite      = 1;
 		if (c == 'd') p.dontwait  = 1;
+		if (c == 'B') p.bad_addr  = atoi(optarg);
 		if (c == 's') p.so_reuseport= 1;
 		if (c == 'C') p.connect  = 1;
 		if (c == 'S') setup_sockaddr(addr_family, &p.sender_addr,
