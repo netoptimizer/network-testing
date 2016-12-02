@@ -41,6 +41,8 @@ static const char *__doc__=
 #define RUN_READ      0x8
 #define RUN_ALL       (RUN_RECVMSG | RUN_RECVMMSG | RUN_RECVFROM | RUN_READ)
 
+int waitforone = 0;
+
 static const struct option long_options[] = {
 	/* keep recv functions grouped together */
 	{"read",	no_argument,		NULL, 'T' },
@@ -52,6 +54,7 @@ static const struct option long_options[] = {
 	{"ipv4",	no_argument,		NULL, '4' },
 	{"ipv6",	no_argument,		NULL, '6' },
 	{"reuse-port",	no_argument,		NULL, 's' },
+	{"waitforone",	no_argument,		NULL, 'O' },
 	{"batch",	required_argument,	NULL, 'b' },
 	{"count",	required_argument,	NULL, 'c' },
 	{"port",	required_argument,	NULL, 'l' },
@@ -224,7 +227,7 @@ static int sink_with_recvmsg(int sockfd, int count, int batch) {
 */
 
 static int sink_with_recvMmsg(int sockfd, int count, int batch) {
-	int cnt, i, res, pkt;
+	int cnt, i, res, pkt, batches = 0;
 	uint64_t total = 0, packets;
 	int buf_sz = 4096;
 	char *buffer = malloc_payload_buffer(buf_sz);
@@ -239,21 +242,19 @@ static int sink_with_recvMmsg(int sockfd, int count, int batch) {
 	struct mmsghdr *mmsg_hdr;
 
 	mmsg_hdr = malloc_mmsghdr(batch);         /* Alloc mmsghdr array */
-	msg_iov  = malloc_iovec(iov_array_elems); /* Alloc I/O vector array */
-
-	count = count / batch;
+	msg_iov  = malloc_iovec(iov_array_elems*batch); /* Alloc I/O vector array */
 
 	/*** Setup packet structure for receiving
 	 ***/
 	/* Setup io-vector pointers for receiving payload data */
-	msg_iov[0].iov_base = buffer;
-	msg_iov[0].iov_len  = buf_sz;
-	/* The io-vector supports scattered payload data, below add a simpel
-	 * testcase with dst payload, adjust iov_array_elems > 1 to activate code
-	 */
-	for (i = 1; i < iov_array_elems; i++) {
-		msg_iov[i].iov_base = buffer;
-		msg_iov[i].iov_len  = buf_sz;
+	for (pkt=0; pkt < batch; ++pkt) {
+		/* The io-vector supports scattered payload data, below add a simpel
+		* testcase with dst payload, adjust iov_array_elems > 1 to activate code
+		*/
+		for (i = 0; i < iov_array_elems; i++) {
+			msg_iov[pkt+i].iov_base = malloc(buf_sz);
+			msg_iov[pkt+i].iov_len  = buf_sz;
+		}
 	}
 
 	for (pkt = 0; pkt < batch; pkt++) {
@@ -261,23 +262,35 @@ static int sink_with_recvMmsg(int sockfd, int count, int batch) {
 		mmsg_hdr[pkt].msg_hdr.msg_name    = NULL;
 		mmsg_hdr[pkt].msg_hdr.msg_namelen = 0;
 		/* Binding io-vector to packet setup struct */
-		mmsg_hdr[pkt].msg_hdr.msg_iov    = msg_iov;
+		mmsg_hdr[pkt].msg_hdr.msg_iov    = &msg_iov[pkt*iov_array_elems];
 		mmsg_hdr[pkt].msg_hdr.msg_iovlen = iov_array_elems;
 	}
 
 	/* Receive LOOP */
-	for (cnt = 0; cnt < count; cnt++) {
-		res = recvmmsg(sockfd, mmsg_hdr, batch, 0, NULL);
+	for (cnt = 0; cnt < count; ) {
+		res = recvmmsg(sockfd, mmsg_hdr, batch, waitforone ?
+						       MSG_WAITFORONE: 0, NULL);
 //		res = syscall(__NR_recvmmsg, sockfd, mmsg_hdr, batch, 0, NULL);
 		if (res < 0)
 			goto error;
-		for (pkt = 0; pkt < batch; pkt++)
+		batches++;
+		for (pkt = 0; pkt < res; pkt++)
 			total += mmsg_hdr[pkt].msg_len;
+		cnt += res;
 	}
-	packets = cnt * batch;
-	if (verbose > 0)
-		printf(" - read %lu bytes in %lu packets= %lu bytes payload (loop %d)\n",
-		       total, packets, total / packets, cnt);
+	packets = cnt;
+	if (verbose > 0) {
+		printf(" - read %lu bytes in %lu packets= %lu bytes "
+			       "payload", total, packets,
+			       packets ? total / packets: 0);
+		if (waitforone)
+			printf("= %ld avg batch len",
+			       batches ? packets / batches : 0);
+		printf(" (loop %d)\n", batches);
+	}
+
+	for (i = 1; i < iov_array_elems; i++)
+		free(msg_iov[i].iov_base);
 
 	free(msg_iov);
 	free(mmsg_hdr);
@@ -424,7 +437,7 @@ int main(int argc, char *argv[])
 	struct sockaddr_storage listen_addr; /* Can contain both sockaddr_in and sockaddr_in6 */
 
 	/* Parse commands line args */
-	while ((c = getopt_long(argc, argv, "hc:r:l:64sCv:tTuUb:",
+	while ((c = getopt_long(argc, argv, "hc:r:l:64OsCv:tTuUb:",
 				long_options, &longindex)) != -1) {
 		if (c == 'c') count       = atoi(optarg);
 		if (c == 'r') repeat      = atoi(optarg);
@@ -432,6 +445,7 @@ int main(int argc, char *argv[])
 		if (c == 'l') listen_port = atoi(optarg);
 		if (c == '4') addr_family = AF_INET;
 		if (c == '6') addr_family = AF_INET6;
+		if (c == 'O') waitforone  = 1;
 		if (c == 's') so_reuseport= 1;
 		if (c == 'C') do_connect  = 1;
 		if (c == 'v') verbose     = optarg ? atoi(optarg) : 1;
