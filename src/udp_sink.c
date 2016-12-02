@@ -44,6 +44,10 @@ static const char *__doc__=
 int waitforone = 0;
 int sk_timeout = -1;
 int timeout = -1;
+int check = 0;
+long long ooo = 0;
+long long bad_magic = 0;
+long long bad_repeat = 0;
 
 static const struct option long_options[] = {
 	/* keep recv functions grouped together */
@@ -59,6 +63,7 @@ static const struct option long_options[] = {
 	{"waitforone",	no_argument,		NULL, 'O' },
 	{"timeout",	required_argument,	NULL, 'i' },
 	{"sk-timeout",	required_argument,	NULL, 'I' },
+	{"check-pktgen",no_argument,		NULL, 0 },
 	{"batch",	required_argument,	NULL, 'b' },
 	{"count",	required_argument,	NULL, 'c' },
 	{"port",	required_argument,	NULL, 'l' },
@@ -98,6 +103,96 @@ static int usage(char *argv[])
 	printf("\n");
 
 	return EXIT_FAIL_OPTION;
+}
+
+static void check_pkt(struct iovec *iov, int nr, int len)
+{
+	static struct pktgen_hdr last = { .pgh_magic = 0 };
+	int offset = 0, i = 0, hdr = 0, l = len;
+	struct pktgen_hdr _pgh, *pgh = NULL, current = { .pgh_magic = 0 };
+	int cur_len;
+
+	if (!check)
+		return;
+
+	cur_len = len < iov[i].iov_len ? len : iov[i].iov_len;
+	len -= cur_len;
+	for (;;) {
+		/* access the header, possibly across different iov buckets */
+		if (cur_len - offset < sizeof(_pgh)) {
+			int first_chunk = cur_len - offset;
+			int second_chunk;
+
+			memcpy(&_pgh, iov[i].iov_base + offset, first_chunk);
+			second_chunk = sizeof(_pgh) - first_chunk;
+			if (second_chunk > 0) {
+				if (i + 1 >= nr)
+					break;
+
+				memcpy(((char *)&_pgh) + first_chunk,
+				       iov[i + 1].iov_base, second_chunk);
+			}
+
+			pgh = &_pgh;
+		} else {
+			pgh = (struct pktgen_hdr*)(iov[i].iov_base + offset);
+		}
+
+		if (hdr == 0) {
+			/* first header check seqnum and magic */
+			if (ntohl(pgh->pgh_magic) != PKTGEN_MAGIC)
+				++bad_magic;
+
+			if (last.pgh_magic && ((pgh->tv_sec < last.tv_sec) ||
+			           (pgh->tv_sec == last.tv_sec &&
+			            pgh->tv_usec < last.tv_usec) ||
+			           (pgh->tv_sec == last.tv_sec &&
+			            pgh->tv_usec == last.tv_usec &&
+			            pgh->seq_num < last.seq_num &&
+			            last.seq_num < 3*1000*1000*1000u)))
+				++ooo;
+
+			/* the "check-pktgen" option can be specified multiple
+			 * times,
+			 * check strictly the seq_num only we get 3 of them
+			 */
+			if ((check > 2) && last.pgh_magic)
+				if (pgh->seq_num != last.seq_num + 1)
+					++ooo;
+
+			last = *pgh;
+			/* the header is expected to be repeated filling the
+			 * whole packet only if the "check-pktgen" option
+			 * is specifed at least twice
+			 */
+			if (check < 2)
+				break;
+
+			current = *pgh;
+		} else if (memcmp(&current, pgh, sizeof(current)))
+			bad_repeat++;
+
+		hdr++;
+
+		/* move to next chunk */
+		offset += sizeof(*pgh);
+		if (offset >= iov[i].iov_len) {
+			offset -= iov[i].iov_len;
+			if (i + 1 >= nr)
+				break;
+			cur_len = len < iov[i].iov_len ? len : iov[i].iov_len;
+			len -= cur_len;
+		}
+	}
+
+	if ((check > 2) && (ooo || bad_repeat || bad_magic)) {
+		printf("%s with packet len %d iov nr %d\n", ooo ? "OoO" :
+			(bad_repeat ? "bad repeated hdr" : "bad magic"),
+			l, nr);
+	}
+
+	if (current.pgh_magic)
+		last = current;
 }
 
 static int sink_with_read(int sockfd, int count, int batch) {
@@ -197,11 +292,16 @@ static int sink_with_recvmsg(int sockfd, int count, int batch) {
 		res = recvmsg(sockfd, msg_hdr, 0);
 		if (res < 0)
 			goto error;
+
+		check_pkt(msg_iov, iov_array_elems, res);
 		total += res;
 	}
 	if (verbose > 0)
 		printf(" - read %lu bytes in %d packets = %lu bytes payload\n",
 		       total, i, total / i);
+	if (ooo || bad_magic || bad_repeat)
+		printf(" - failed checks OoO %lld wrong magic %lld bad repeat %lld\n",
+		       ooo, bad_magic, bad_repeat);
 
 	free(msg_iov);
 	free(msg_hdr);
@@ -285,8 +385,12 @@ static int sink_with_recvMmsg(int sockfd, int count, int batch) {
 		if (res < 0)
 			goto error;
 		batches++;
-		for (pkt = 0; pkt < res; pkt++)
+		for (pkt = 0; pkt < res; pkt++) {
 			total += mmsg_hdr[pkt].msg_len;
+			check_pkt(mmsg_hdr[pkt].msg_hdr.msg_iov,
+				  mmsg_hdr[pkt].msg_hdr.msg_iovlen,
+				  mmsg_hdr[pkt].msg_len);
+		}
 		cnt += res;
 	}
 	packets = cnt;
@@ -299,6 +403,9 @@ static int sink_with_recvMmsg(int sockfd, int count, int batch) {
 			       batches ? packets / batches : 0);
 		printf(" (loop %d)\n", batches);
 	}
+	if (ooo || bad_magic || bad_repeat)
+		printf(" - failed checks OoO %lld wrong magic %lld bad repeat %lld\n",
+		       ooo, bad_magic, bad_repeat);
 
 	for (i = 1; i < iov_array_elems; i++)
 		free(msg_iov[i].iov_base);
@@ -450,6 +557,12 @@ int main(int argc, char *argv[])
 	/* Parse commands line args */
 	while ((c = getopt_long(argc, argv, "hc:r:l:64Oi:I:sCv:tTuUb:",
 				long_options, &longindex)) != -1) {
+		if (c == 0) {
+			/* handle options without short version */
+			if (!strcmp(long_options[longindex].name,
+				    "check-pktgen"))
+				check++;
+		}
 		if (c == 'c') count       = atoi(optarg);
 		if (c == 'r') repeat      = atoi(optarg);
 		if (c == 'b') batch       = atoi(optarg);

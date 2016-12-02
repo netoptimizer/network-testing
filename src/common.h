@@ -12,6 +12,15 @@
 
 extern int verbose;
 
+#define PKTGEN_MAGIC 0xbe9be955
+
+struct pktgen_hdr {
+	uint32_t pgh_magic;
+	uint32_t seq_num;
+	uint32_t tv_sec;
+	uint32_t tv_usec;
+};
+
 inline uint64_t rdtsc()
 {
 	uint32_t low, high;
