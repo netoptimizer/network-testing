@@ -42,6 +42,7 @@ static const char *__doc__=
 #define RUN_ALL       (RUN_RECVMSG | RUN_RECVMMSG | RUN_RECVFROM | RUN_READ)
 
 struct sink_params {
+	int iov_elems;
 	int batch;
 	int count;
 	int repeat;
@@ -72,6 +73,7 @@ static const struct option long_options[] = {
 	{"timeout",	required_argument,	NULL, 'i' },
 	{"sk-timeout",	required_argument,	NULL, 'I' },
 	{"check-pktgen",no_argument,		NULL, 0 },
+	{"nr-iovec",    required_argument,	NULL, 0 },
 	{"batch",	required_argument,	NULL, 'b' },
 	{"count",	required_argument,	NULL, 'c' },
 	{"port",	required_argument,	NULL, 'l' },
@@ -126,9 +128,14 @@ static void check_pkt(struct iovec *iov, int nr, int len, struct sink_params *p)
 	cur_len = len < iov[i].iov_len ? len : iov[i].iov_len;
 	len -= cur_len;
 	for (;;) {
+		int first_chunk = cur_len - offset;
+
+		/* check for end of buffer */
+		if (first_chunk + len < sizeof(_pgh))
+			break;
+
 		/* access the header, possibly across different iov buckets */
-		if (cur_len - offset < sizeof(_pgh)) {
-			int first_chunk = cur_len - offset;
+		if (first_chunk < sizeof(_pgh)) {
 			int second_chunk;
 
 			memcpy(&_pgh, iov[i].iov_base + offset, first_chunk);
@@ -177,8 +184,9 @@ static void check_pkt(struct iovec *iov, int nr, int len, struct sink_params *p)
 				break;
 
 			current = *pgh;
-		} else if (memcmp(&current, pgh, sizeof(current)))
+		} else if (memcmp(&current, pgh, sizeof(current))) {
 			p->bad_repeat++;
+		}
 
 		hdr++;
 
@@ -186,7 +194,7 @@ static void check_pkt(struct iovec *iov, int nr, int len, struct sink_params *p)
 		offset += sizeof(*pgh);
 		if (offset >= iov[i].iov_len) {
 			offset -= iov[i].iov_len;
-			if (i + 1 >= nr)
+			if (++i >= nr)
 				break;
 			cur_len = len < iov[i].iov_len ? len : iov[i].iov_len;
 			len -= cur_len;
@@ -197,6 +205,7 @@ static void check_pkt(struct iovec *iov, int nr, int len, struct sink_params *p)
 		printf("%s with packet len %d iov nr %d\n", p->ooo ? "OoO" :
 			(p->bad_repeat ? "bad repeated hdr" : "bad magic"),
 			l, nr);
+		exit(EXIT_FAIL_RECV);
 	}
 
 	if (current.pgh_magic)
@@ -263,10 +272,9 @@ static int sink_with_recvmsg(int sockfd, struct sink_params *p) {
 	char *buffer = malloc_payload_buffer(p->buf_sz);
 	struct msghdr *msg_hdr;  /* struct for setting up transmit */
 	struct iovec  *msg_iov;  /* io-vector: array of pointers to payload data */
-	unsigned int iov_array_elems = 1; /* test scattered payload */
 
 	msg_hdr = malloc_msghdr();               /* Alloc msghdr setup structure */
-	msg_iov = malloc_iovec(iov_array_elems); /* Alloc I/O vector array */
+	msg_iov = malloc_iovec(p->iov_elems); /* Alloc I/O vector array */
 
 	/*** Setup packet structure for receiving ***/
 	/* The senders info is stored here but we don't care, so use NULL */
@@ -274,17 +282,17 @@ static int sink_with_recvmsg(int sockfd, struct sink_params *p) {
 	msg_hdr->msg_namelen = 0;
 	/* Setup io-vector pointers for receiving payload data */
 	msg_iov[0].iov_base = buffer;
-	msg_iov[0].iov_len  = p->buf_sz;
+	msg_iov[0].iov_len  = p->buf_sz / p->iov_elems;
 	/* The io-vector supports scattered payload data, below add a simpel
 	 * testcase with dst payload, adjust iov_array_elems > 1 to activate code
 	 */
-	for (i = 1; i < iov_array_elems; i++) {
-		msg_iov[i].iov_base = buffer;
-		msg_iov[i].iov_len  = p->buf_sz;
+	for (i = 1; i < p->iov_elems; i++) {
+		msg_iov[i].iov_base = buffer + i * msg_iov[0].iov_len;
+		msg_iov[i].iov_len  = msg_iov[0].iov_len;
 	}
 	/* Binding io-vector to packet setup struct */
 	msg_hdr->msg_iov    = msg_iov;
-	msg_hdr->msg_iovlen = iov_array_elems;
+	msg_hdr->msg_iovlen = p->iov_elems;
 
 	/* Having several IOV's does not help much. The return value
 	 * of recvmsg is the total packet size.  It can be split out
@@ -298,7 +306,7 @@ static int sink_with_recvmsg(int sockfd, struct sink_params *p) {
 		if (res < 0)
 			goto error;
 
-		check_pkt(msg_iov, iov_array_elems, res, p);
+		check_pkt(msg_iov, p->iov_elems, res, p);
 
 		total += res;
 	}
@@ -341,7 +349,6 @@ static int sink_with_recvMmsg(int sockfd, struct sink_params *p) {
 	uint64_t total = 0, packets, flags;
 	char *buffer = malloc_payload_buffer(p->buf_sz);
 	struct iovec  *msg_iov;  /* io-vector: array of pointers to payload data */
-	unsigned int iov_array_elems = 1; /* test scattered payload */
 	struct timespec __ts, ___ts = { .tv_sec = p->timeout, .tv_nsec = 0};
 	struct timespec *ts = NULL;
 
@@ -353,28 +360,26 @@ static int sink_with_recvMmsg(int sockfd, struct sink_params *p) {
 	struct mmsghdr *mmsg_hdr;
 
 	mmsg_hdr = malloc_mmsghdr(p->batch);         /* Alloc mmsghdr array */
-	msg_iov  = malloc_iovec(iov_array_elems*p->batch); /* Alloc I/O vector array */
+	msg_iov  = malloc_iovec(p->iov_elems*p->batch); /* Alloc I/O vector array */
 
 	/*** Setup packet structure for receiving
 	 ***/
-	/* Setup io-vector pointers for receiving payload data */
-	for (pkt=0; pkt < p->batch; ++pkt) {
-		/* The io-vector supports scattered payload data, below add a simpel
-		* testcase with dst payload, adjust iov_array_elems > 1 to activate code
-		*/
-		for (i = 0; i < iov_array_elems; i++) {
-			msg_iov[pkt+i].iov_base = malloc(p->buf_sz);
-			msg_iov[pkt+i].iov_len  = p->buf_sz;
-		}
-	}
-
 	for (pkt = 0; pkt < p->batch; pkt++) {
+		char *buf = malloc(p->buf_sz);
+		int size = p->buf_sz / p->iov_elems;
+
+		/* Setup io-vector pointers for receiving payload data */
+		for (i = 0; i < p->iov_elems; i++) {
+			msg_iov[pkt*p->iov_elems+i].iov_base = buf + size*i;
+			msg_iov[pkt*p->iov_elems+i].iov_len  = size;
+		}
+
 		/* The senders info is stored here but we don't care, so use NULL */
 		mmsg_hdr[pkt].msg_hdr.msg_name    = NULL;
 		mmsg_hdr[pkt].msg_hdr.msg_namelen = 0;
 		/* Binding io-vector to packet setup struct */
-		mmsg_hdr[pkt].msg_hdr.msg_iov    = &msg_iov[pkt*iov_array_elems];
-		mmsg_hdr[pkt].msg_hdr.msg_iovlen = iov_array_elems;
+		mmsg_hdr[pkt].msg_hdr.msg_iov    = &msg_iov[pkt*p->iov_elems];
+		mmsg_hdr[pkt].msg_hdr.msg_iovlen = p->iov_elems;
 	}
 
 	if (p->timeout >= 0)
@@ -411,8 +416,8 @@ static int sink_with_recvMmsg(int sockfd, struct sink_params *p) {
 		printf(" - failed checks OoO %lld wrong magic %lld bad repeat %lld\n",
 		       p->ooo, p->bad_magic, p->bad_repeat);
 
-	for (i = 1; i < iov_array_elems; i++)
-		free(msg_iov[i].iov_base);
+	for (pkt=0; pkt < p->batch; ++pkt)
+		free(msg_iov[pkt*p->iov_elems].iov_base);
 
 	free(msg_iov);
 	free(mmsg_hdr);
@@ -550,6 +555,7 @@ static void init_params(struct sink_params *params)
 	params->count  = 1000000;
 	params->repeat = 2;
 	params->batch = 32;
+	params->iov_elems = 1;
 	params->buf_sz = 4096;
 }
 
@@ -577,6 +583,9 @@ int main(int argc, char *argv[])
 			if (!strcmp(long_options[longindex].name,
 				    "check-pktgen"))
 				p.check++;
+			if (!strcmp(long_options[longindex].name,
+				    "nr-iovec"))
+				p.iov_elems = atoi(optarg);
 		}
 		if (c == 'c') p.count     = atoi(optarg);
 		if (c == 'r') p.repeat    = atoi(optarg);
