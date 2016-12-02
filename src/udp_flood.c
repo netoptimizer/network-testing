@@ -40,6 +40,7 @@ static const char *__doc__=
 #define RUN_ALL       (RUN_SENDMSG | RUN_SENDMMSG | RUN_SENDTO | RUN_WRITE | RUN_SEND)
 
 struct flood_params {
+	int lite;
 	int batch;
 	int count;
 	int msg_sz;
@@ -53,6 +54,7 @@ static const struct option long_options[] = {
 	{"help",	no_argument,		NULL, 'h' },
 	{"ipv4",	no_argument,		NULL, '4' },
 	{"ipv6",	no_argument,		NULL, '6' },
+	{"lite",	no_argument,		NULL, 'L' },
 	/* keep these grouped together */
 	{"sendmsg",	no_argument,		NULL, 'u' },
 	{"sendmmsg",	no_argument,		NULL, 'U' },
@@ -468,6 +470,7 @@ int main(int argc, char *argv[])
 		if (c == '4') addr_family = AF_INET;
 		if (c == '6') addr_family = AF_INET6;
 		if (c == 'd') p.pmtu      = atoi(optarg);
+		if (c == 'L') p.lite      = 1;
 		if (c == 'v') verbose     = optarg ? atoi(optarg) : 1;
 		if (c == 'u') run_flag   |= RUN_SENDMSG;
 		if (c == 'U') run_flag   |= RUN_SENDMMSG;
@@ -488,7 +491,8 @@ int main(int argc, char *argv[])
 		run_flag = RUN_ALL;
 
 	/* Socket setup stuff */
-	sockfd = Socket(addr_family, SOCK_DGRAM, IPPROTO_UDP);
+	sockfd = Socket(addr_family, SOCK_DGRAM, p.lite ? IPPROTO_UDPLITE :
+			IPPROTO_UDP);
 
 	if (p.pmtu != -1) {
 		if (verbose > 0)

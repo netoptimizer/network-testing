@@ -42,6 +42,7 @@ static const char *__doc__=
 #define RUN_ALL       (RUN_RECVMSG | RUN_RECVMMSG | RUN_RECVFROM | RUN_READ)
 
 struct sink_params {
+	int lite;
 	int iov_elems;
 	int batch;
 	int count;
@@ -73,7 +74,8 @@ static const struct option long_options[] = {
 	{"timeout",	required_argument,	NULL, 'i' },
 	{"sk-timeout",	required_argument,	NULL, 'I' },
 	{"check-pktgen",no_argument,		NULL, 0 },
-	{"nr-iovec",    required_argument,	NULL, 0 },
+	{"nr-iovec",	required_argument,	NULL, 0 },
+	{"lite",	no_argument,		NULL, 'L' },
 	{"batch",	required_argument,	NULL, 'b' },
 	{"count",	required_argument,	NULL, 'c' },
 	{"port",	required_argument,	NULL, 'l' },
@@ -576,7 +578,7 @@ int main(int argc, char *argv[])
 	init_params(&p);
 
 	/* Parse commands line args */
-	while ((c = getopt_long(argc, argv, "hc:r:l:64Oi:I:sCv:tTuUb:",
+	while ((c = getopt_long(argc, argv, "hc:r:l:64Oi:I:LsC:v:tTuUb:",
 				long_options, &longindex)) != -1) {
 		if (c == 0) {
 			/* handle options without short version */
@@ -596,6 +598,7 @@ int main(int argc, char *argv[])
 		if (c == 'O') p.waitforone  = 1;
 		if (c == 'i') p.timeout     = atoi(optarg);
 		if (c == 'I') p.sk_timeout  = atoi(optarg);
+		if (c == 'L') p.lite      = 1;
 		if (c == 's') p.so_reuseport= 1;
 		if (c == 'C') p.connect  = 1;
 		if (c == 'v') verbose     = optarg ? atoi(optarg) : 1;
@@ -613,7 +616,8 @@ int main(int argc, char *argv[])
 		run_flag = RUN_ALL;
 
 	/* Socket setup stuff */
-	sockfd = Socket(addr_family, SOCK_DGRAM, IPPROTO_UDP);
+	sockfd = Socket(addr_family, SOCK_DGRAM, p.lite ? IPPROTO_UDPLITE :
+			IPPROTO_UDP);
 
 	/* Enable use of SO_REUSEPORT for multi-process testing  */
 	if (p.so_reuseport) {
