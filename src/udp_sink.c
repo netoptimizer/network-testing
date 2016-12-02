@@ -42,6 +42,8 @@ static const char *__doc__=
 #define RUN_ALL       (RUN_RECVMSG | RUN_RECVMMSG | RUN_RECVFROM | RUN_READ)
 
 int waitforone = 0;
+int sk_timeout = -1;
+int timeout = -1;
 
 static const struct option long_options[] = {
 	/* keep recv functions grouped together */
@@ -55,6 +57,8 @@ static const struct option long_options[] = {
 	{"ipv6",	no_argument,		NULL, '6' },
 	{"reuse-port",	no_argument,		NULL, 's' },
 	{"waitforone",	no_argument,		NULL, 'O' },
+	{"timeout",	required_argument,	NULL, 'i' },
+	{"sk-timeout",	required_argument,	NULL, 'I' },
 	{"batch",	required_argument,	NULL, 'b' },
 	{"count",	required_argument,	NULL, 'c' },
 	{"port",	required_argument,	NULL, 'l' },
@@ -233,6 +237,8 @@ static int sink_with_recvMmsg(int sockfd, int count, int batch) {
 	char *buffer = malloc_payload_buffer(buf_sz);
 	struct iovec  *msg_iov;  /* io-vector: array of pointers to payload data */
 	unsigned int iov_array_elems = 1; /* test scattered payload */
+	struct timespec __ts, ___ts = { .tv_sec = timeout, .tv_nsec = 0};
+	struct timespec *ts = NULL;
 
 	/* struct *mmsghdr -  pointer to an array of mmsghdr structures.
 	 *   *** Notice: double "m" in mmsghdr ***
@@ -266,10 +272,15 @@ static int sink_with_recvMmsg(int sockfd, int count, int batch) {
 		mmsg_hdr[pkt].msg_hdr.msg_iovlen = iov_array_elems;
 	}
 
+	if (timeout >= 0)
+		ts = &__ts;
+
 	/* Receive LOOP */
 	for (cnt = 0; cnt < count; ) {
+		if (ts)
+			__ts = ___ts;
 		res = recvmmsg(sockfd, mmsg_hdr, batch, waitforone ?
-						       MSG_WAITFORONE: 0, NULL);
+						       MSG_WAITFORONE: 0, ts);
 //		res = syscall(__NR_recvmmsg, sockfd, mmsg_hdr, batch, 0, NULL);
 		if (res < 0)
 			goto error;
@@ -437,7 +448,7 @@ int main(int argc, char *argv[])
 	struct sockaddr_storage listen_addr; /* Can contain both sockaddr_in and sockaddr_in6 */
 
 	/* Parse commands line args */
-	while ((c = getopt_long(argc, argv, "hc:r:l:64OsCv:tTuUb:",
+	while ((c = getopt_long(argc, argv, "hc:r:l:64Oi:I:sCv:tTuUb:",
 				long_options, &longindex)) != -1) {
 		if (c == 'c') count       = atoi(optarg);
 		if (c == 'r') repeat      = atoi(optarg);
@@ -446,6 +457,8 @@ int main(int argc, char *argv[])
 		if (c == '4') addr_family = AF_INET;
 		if (c == '6') addr_family = AF_INET6;
 		if (c == 'O') waitforone  = 1;
+		if (c == 'i') timeout     = atoi(optarg);
+		if (c == 'I') sk_timeout  = atoi(optarg);
 		if (c == 's') so_reuseport= 1;
 		if (c == 'C') do_connect  = 1;
 		if (c == 'v') verbose     = optarg ? atoi(optarg) : 1;
@@ -490,6 +503,16 @@ int main(int argc, char *argv[])
 	}
 
 	Bind(sockfd, &listen_addr);
+
+	if (sk_timeout >= 0) {
+		struct timeval tv = { sk_timeout, 0 };
+
+		if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv,
+			       sizeof(tv)) < 0) {
+			perror("- setsockopt(SO_RCVTIMEO)");
+			exit(EXIT_FAIL_SOCKOPT);
+		}
+	}
 
 	if (run_flag & RUN_RECVMMSG) {
 		print_header("recvMmsg", batch);
