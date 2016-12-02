@@ -50,6 +50,8 @@ struct sink_params {
 	int waitforone;
 	int dontwait;
 	int bad_addr;
+	int recv_ttl;
+	int recv_pktinfo;
 	int sk_timeout;
 	int timeout;
 	int check;
@@ -82,6 +84,8 @@ static const struct option long_options[] = {
 	{"lite",	no_argument,		NULL, 'L' },
 	{"dontwait",	no_argument,		NULL, 'd' },
 	{"use-bad-ptr",	required_argument,	NULL, 'B' },
+	{"recv-ttl",	no_argument,		NULL, 0  },
+	{"recv-pktinfo",no_argument,		NULL, 0  },
 	{"batch",	required_argument,	NULL, 'b' },
 	{"count",	required_argument,	NULL, 'c' },
 	{"port",	required_argument,	NULL, 'l' },
@@ -322,6 +326,68 @@ static void check_msg_name(struct msghdr *msg_hdr,
 	}
 }
 
+#define CMSG_DLEN(cmsg) ((cmsg)->cmsg_len - sizeof(struct cmsghdr))
+static void check_cmsg(struct msghdr *msg_hdr, struct sink_params *p,
+		       int max_len)
+{
+	struct in_pktinfo *found_pktinfo = NULL;
+	struct cmsghdr *get_cmsg;
+	int found_ttl = 0;
+
+	if (!p->recv_ttl && !p->recv_pktinfo) {
+		if (msg_hdr->msg_controllen) {
+			printf("found unrequested cmsg data, len %zd\n",
+			       msg_hdr->msg_controllen);
+			exit(EXIT_FAIL_SOCK);
+		}
+		return;
+	}
+
+	if (msg_hdr->msg_controllen > max_len) {
+		printf("bad msg len %zd max %d\n", msg_hdr->msg_controllen,
+		       max_len);
+		exit(EXIT_FAIL_SOCK);
+	}
+
+	for (get_cmsg = CMSG_FIRSTHDR(msg_hdr); get_cmsg;
+	     get_cmsg = CMSG_NXTHDR(msg_hdr, get_cmsg)) {
+		if (get_cmsg->cmsg_level == IPPROTO_IP &&
+		    get_cmsg->cmsg_type == IP_PKTINFO &&
+		    CMSG_DLEN(get_cmsg) == sizeof(struct in_pktinfo)) {
+			found_pktinfo = (struct in_pktinfo *)CMSG_DATA(get_cmsg);
+		} else if (get_cmsg->cmsg_level == IPPROTO_IP &&
+			   get_cmsg->cmsg_type == IP_TTL  &&
+			   CMSG_DLEN(get_cmsg) == sizeof(int)) {
+			int *ttl_ptr = ((int *)CMSG_DATA(get_cmsg));
+			found_ttl = *ttl_ptr;
+		}
+	}
+
+	if (p->recv_ttl ^ !!found_ttl) {
+		printf("ttl cmsg missmatch, requested %d found %d\n",
+		       p->recv_ttl, found_ttl);
+		exit(EXIT_FAIL_SOCK);
+	}
+	if (p->recv_pktinfo ^ !!found_pktinfo) {
+		printf("pktinfo cmsg missmatch, requested %d found %p:%d:%x:%x\n",
+		       p->recv_pktinfo, found_pktinfo,
+		       found_pktinfo ? found_pktinfo->ipi_ifindex : 0,
+		       found_pktinfo ? found_pktinfo->ipi_spec_dst.s_addr : 0,
+		       found_pktinfo ? found_pktinfo->ipi_addr.s_addr: 0);
+		exit(EXIT_FAIL_SOCK);
+	}
+
+	if (!verbose)
+		return;
+
+	if (found_pktinfo)
+		printf("pktinfo: %d:%x:%x\n", found_pktinfo->ipi_ifindex,
+		       found_pktinfo->ipi_spec_dst.s_addr,
+		       found_pktinfo->ipi_addr.s_addr);
+	if (found_ttl)
+		printf("ttl: %d\n", found_ttl);
+}
+
 static int sink_with_recvmsg(int sockfd, struct sink_params *p) {
 	int i, res;
 	uint64_t total = 0;
@@ -330,6 +396,7 @@ static int sink_with_recvmsg(int sockfd, struct sink_params *p) {
 	struct iovec  *msg_iov;  /* io-vector: array of pointers to payload data */
 	int flags = p->dontwait ? MSG_DONTWAIT : 0;
 	struct sockaddr_storage sender;
+	char cbuf[512];
 
 	msg_hdr = malloc_msghdr();               /* Alloc msghdr setup structure */
 	msg_iov = malloc_iovec(p->iov_elems); /* Alloc I/O vector array */
@@ -350,6 +417,10 @@ static int sink_with_recvmsg(int sockfd, struct sink_params *p) {
 	msg_hdr->msg_iov    = msg_iov;
 	msg_hdr->msg_iovlen = p->iov_elems;
 
+	msg_hdr->msg_control = (p->recv_ttl || p->recv_pktinfo) ? cbuf: NULL;
+	msg_hdr->msg_controllen = (p->recv_ttl || p->recv_pktinfo) ?
+					sizeof(cbuf): 0;
+
 	/* Having several IOV's does not help much. The return value
 	 * of recvmsg is the total packet size.  It can be split out
 	 * on several IOVs, only if the buffer size of the first IOV
@@ -364,6 +435,7 @@ static int sink_with_recvmsg(int sockfd, struct sink_params *p) {
 
 		check_pkt(msg_iov, p->iov_elems, res, p);
 		check_msg_name(msg_hdr, &p->sender_addr);
+		check_cmsg(msg_hdr, p, sizeof(cbuf));
 
 		total += res;
 	}
@@ -410,6 +482,7 @@ static int sink_with_recvMmsg(int sockfd, struct sink_params *p) {
 	struct timespec *ts = NULL;
 	int flags = p->dontwait ? MSG_DONTWAIT : 0;
 	struct sockaddr_storage sender[p->batch];
+	char cbuf[p->batch][512];
 
 	/* struct *mmsghdr -  pointer to an array of mmsghdr structures.
 	 *   *** Notice: double "m" in mmsghdr ***
@@ -442,6 +515,10 @@ static int sink_with_recvMmsg(int sockfd, struct sink_params *p) {
 		/* Binding io-vector to packet setup struct */
 		mmsg_hdr[pkt].msg_hdr.msg_iov    = &msg_iov[pkt*p->iov_elems];
 		mmsg_hdr[pkt].msg_hdr.msg_iovlen = p->iov_elems;
+		mmsg_hdr[pkt].msg_hdr.msg_control = (p->recv_ttl || p->recv_pktinfo) ?
+						cbuf[pkt]: NULL;
+		mmsg_hdr[pkt].msg_hdr.msg_controllen = (p->recv_ttl || p->recv_pktinfo) ?
+							sizeof(cbuf[pkt]): 0;
 	}
 
 	if (p->timeout >= 0)
@@ -462,6 +539,7 @@ static int sink_with_recvMmsg(int sockfd, struct sink_params *p) {
 				  mmsg_hdr[pkt].msg_hdr.msg_iovlen,
 				  mmsg_hdr[pkt].msg_len, p);
 			check_msg_name(&mmsg_hdr[pkt].msg_hdr, &p->sender_addr);
+			check_cmsg(&mmsg_hdr[pkt].msg_hdr, p, sizeof(cbuf[pkt]));
 		}
 		cnt += res;
 	}
@@ -624,17 +702,14 @@ static void init_params(struct sink_params *params)
 
 int main(int argc, char *argv[])
 {
-	struct sink_params p;
-	int sockfd, c;
-
-	/* Default settings */
-	int addr_family = AF_INET; /* Default address family */
+	struct sockaddr_storage listen_addr; /* Can contain both sockaddr_in and sockaddr_in6 */
 	uint16_t listen_port = 6666;
+	int addr_family = AF_INET; /* Default address family */
+	struct sink_params p;
 	int longindex = 0;
 	int run_flag = 0;
-
-	/* Support for both IPv4 and IPv6 */
-	struct sockaddr_storage listen_addr; /* Can contain both sockaddr_in and sockaddr_in6 */
+	int sockfd, c;
+	int on = 1;
 
 	init_params(&p);
 
@@ -649,6 +724,11 @@ int main(int argc, char *argv[])
 			if (!strcmp(long_options[longindex].name,
 				    "nr-iovec"))
 				p.iov_elems = atoi(optarg);
+			if (!strcmp(long_options[longindex].name,
+				    "recv-pktinfo"))
+				p.recv_pktinfo = 1;
+			if (!strcmp(long_options[longindex].name, "recv-ttl"))
+				p.recv_ttl = 1;
 		}
 		if (c == 'c') p.count     = atoi(optarg);
 		if (c == 'r') p.repeat    = atoi(optarg);
@@ -662,8 +742,8 @@ int main(int argc, char *argv[])
 		if (c == 'L') p.lite      = 1;
 		if (c == 'd') p.dontwait  = 1;
 		if (c == 'B') p.bad_addr  = atoi(optarg);
-		if (c == 's') p.so_reuseport= 1;
 		if (c == 'C') p.connect  = 1;
+		if (c == 's') p.so_reuseport = 1;
 		if (c == 'S') setup_sockaddr(addr_family, &p.sender_addr,
 					     optarg, 0);
 		if (c == 'v') verbose     = optarg ? atoi(optarg) : 1;
@@ -691,6 +771,23 @@ int main(int argc, char *argv[])
 			    printf("ERROR: No support for SO_REUSEPORT\n");
 			    perror("- setsockopt(SO_REUSEPORT)");
 			    exit(EXIT_FAIL_SOCKOPT);
+		}
+	}
+
+	/* enable the requested ancillatory messages */
+	if (p.recv_pktinfo) {
+		if (setsockopt(sockfd, SOL_IP, IP_PKTINFO, &on, sizeof(on)) < 0) {
+			printf("ERROR: No support for IP_RECVTOS\n");
+			perror("- setsockopt(IP_RECVTOS)");
+			exit(EXIT_FAIL_SOCKOPT);
+		}
+	}
+
+	if (p.recv_ttl) {
+		if (setsockopt(sockfd, SOL_IP, IP_RECVTTL, &on, sizeof(on)) < 0) {
+			printf("ERROR: No support for IP_RECVTTL\n");
+			perror("- setsockopt(IP_RECVTOS)");
+			exit(EXIT_FAIL_SOCKOPT);
 		}
 	}
 
