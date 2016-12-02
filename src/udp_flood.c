@@ -39,6 +39,16 @@ static const char *__doc__=
 #define RUN_SEND      0x10
 #define RUN_ALL       (RUN_SENDMSG | RUN_SENDMMSG | RUN_SENDTO | RUN_WRITE | RUN_SEND)
 
+struct flood_params {
+	int batch;
+	int count;
+	int msg_sz;
+	int pmtu; /* Path MTU Discovery setting, affect DF bit */
+
+	/* Support for both IPv4 and IPv6 */
+	struct sockaddr_storage dest_addr;
+};
+
 static const struct option long_options[] = {
 	{"help",	no_argument,		NULL, 'h' },
 	{"ipv4",	no_argument,		NULL, '4' },
@@ -132,20 +142,19 @@ static int usage(char *argv[])
 	return EXIT_FAIL_OPTION;
 }
 
-static int flood_with_sendto(int sockfd, struct sockaddr_storage *dest_addr,
-			     int count, int msg_sz, int batch)
+static int flood_with_sendto(int sockfd, struct flood_params *p)
 {
 	char *msg_buf;
 	int cnt, res = 0;
-	socklen_t addrlen = sockaddr_len(dest_addr);
+	socklen_t addrlen = sockaddr_len(&p->dest_addr);
 
 	/* Allocate payload buffer */
-	msg_buf = malloc_payload_buffer(msg_sz);
+	msg_buf = malloc_payload_buffer(p->msg_sz);
 
 	/* Flood loop */
-	for (cnt = 0; cnt < count; cnt++) {
-		res = sendto(sockfd, msg_buf, msg_sz, 0,
-			     (struct sockaddr *) dest_addr, addrlen);
+	for (cnt = 0; cnt < p->count; cnt++) {
+		res = sendto(sockfd, msg_buf, p->msg_sz, 0,
+			     (struct sockaddr *) &p->dest_addr, addrlen);
 		if (res < 0) {
 			fprintf(stderr, "Managed to send %d packets\n", cnt);
 			perror("- sendto");
@@ -159,19 +168,18 @@ out:
 	return res;
 }
 
-static int flood_with_send(int sockfd, struct sockaddr_storage *dest_addr,
-			   int count, int msg_sz, int batch)
+static int flood_with_send(int sockfd, struct flood_params *p)
 {
 	char *msg_buf;
 	int cnt, res = 0;
 	int flags = 0;
 
 	/* Allocate payload buffer */
-	msg_buf = malloc_payload_buffer(msg_sz);
+	msg_buf = malloc_payload_buffer(p->msg_sz);
 
 	/* Flood loop */
-	for (cnt = 0; cnt < count; cnt++) {
-		res = send(sockfd, msg_buf, msg_sz, flags);
+	for (cnt = 0; cnt < p->count; cnt++) {
+		res = send(sockfd, msg_buf, p->msg_sz, flags);
 		if (res < 0) {
 			fprintf(stderr, "Managed to send %d packets\n", cnt);
 			perror("- send");
@@ -185,18 +193,17 @@ out:
 	return res;
 }
 
-static int flood_with_write(int sockfd, struct sockaddr_storage *dest_addr,
-			    int count, int msg_sz, int batch)
+static int flood_with_write(int sockfd, struct flood_params *p)
 {
 	char *msg_buf;
 	int cnt, res = 0;
 
 	/* Allocate payload buffer */
-	msg_buf = malloc_payload_buffer(msg_sz);
+	msg_buf = malloc_payload_buffer(p->msg_sz);
 
 	/* Flood loop */
-	for (cnt = 0; cnt < count; cnt++) {
-		res = write(sockfd, msg_buf, msg_sz);
+	for (cnt = 0; cnt < p->count; cnt++) {
+		res = write(sockfd, msg_buf, p->msg_sz);
 		if (res < 0) {
 			fprintf(stderr, "Managed to send %d packets\n", cnt);
 			perror("- write");
@@ -243,8 +250,7 @@ out:
 	};
 */
 
-static int flood_with_sendmsg(int sockfd, struct sockaddr_storage *dest_addr,
-			      int count, int msg_sz, int batch)
+static int flood_with_sendmsg(int sockfd, struct flood_params *p)
 {
 	char          *msg_buf;  /* payload data */
 	struct msghdr *msg_hdr;  /* struct for setting up transmit */
@@ -253,34 +259,34 @@ static int flood_with_sendmsg(int sockfd, struct sockaddr_storage *dest_addr,
 	int i;
 
 	int cnt, res;
-	socklen_t addrlen = sockaddr_len(dest_addr);
+	socklen_t addrlen = sockaddr_len(&p->dest_addr);
 
-	msg_buf = malloc_payload_buffer(msg_sz); /* Alloc payload buffer */
+	msg_buf = malloc_payload_buffer(p->msg_sz); /* Alloc payload buffer */
 	msg_hdr = malloc_msghdr();               /* Alloc msghdr setup structure */
 	msg_iov = malloc_iovec(iov_array_elems); /* Alloc I/O vector array */
 
 	/*** Setup packet structure for transmitting ***/
 
 	/* The destination addr */
-	msg_hdr->msg_name    = dest_addr;
+	msg_hdr->msg_name    = &p->dest_addr;
 	msg_hdr->msg_namelen = addrlen;
 
 	/* Setup io-vector pointers to payload data */
 	msg_iov[0].iov_base = msg_buf;
-	msg_iov[0].iov_len  = msg_sz;
+	msg_iov[0].iov_len  = p->msg_sz;
 	/* The io-vector supports scattered payload data, below add a simpel
 	 * testcase with same payload, adjust iov_array_elems > 1 to activate code
 	 */
 	for (i = 1; i < iov_array_elems; i++) {
 		msg_iov[i].iov_base = msg_buf;
-		msg_iov[i].iov_len  = msg_sz;
+		msg_iov[i].iov_len  = p->msg_sz;
 	}
 	/* Binding io-vector to packet setup struct */
 	msg_hdr->msg_iov    = msg_iov;
 	msg_hdr->msg_iovlen = iov_array_elems;
 
 	/* Flood loop */
-	for (cnt = 0; cnt < count; cnt++) {
+	for (cnt = 0; cnt < p->count; cnt++) {
 		res = sendmsg(sockfd, msg_hdr, 0);
 		if (res < 0) {
 			goto error;
@@ -315,15 +321,15 @@ out:
 /* Notice: double "m" in sendmmsg
  * - sending multible packet in one syscall
  */
-static int flood_with_sendMmsg(int sockfd, struct sockaddr_storage *dest_addr,
-			       int count, int msg_sz, int batch)
+static int flood_with_sendMmsg(int sockfd, struct flood_params *p)
 {
 	char          *msg_buf;  /* payload data */
 	struct iovec  *msg_iov;  /* io-vector: array of pointers to payload data */
 	unsigned int  iov_array_elems = 1; /*adjust to test scattered payload */
-	int i;
+	int i, batches, last;
 
-	count = count / batch;
+	batches = p->count / p->batch;
+	last = p->count - batches * p->batch;
 
 	/* struct *mmsghdr -  pointer to an array of mmsghdr structures.
 	 *   *** Notice: double "m" in mmsghdr ***
@@ -333,31 +339,31 @@ static int flood_with_sendMmsg(int sockfd, struct sockaddr_storage *dest_addr,
 	struct mmsghdr *mmsg_hdr;
 
 	int cnt, res, pkt;
-	socklen_t addrlen = sockaddr_len(dest_addr);
+	socklen_t addrlen = sockaddr_len(&p->dest_addr);
 
 	if (verbose > 0)
-		fprintf(stderr, " - batching %d packets in sendmmsg\n", batch);
+		fprintf(stderr, " - batching %d packets in sendmmsg\n", p->batch);
 
-	msg_buf  = malloc_payload_buffer(msg_sz); /* Alloc payload buffer */
-	mmsg_hdr = malloc_mmsghdr(batch);         /* Alloc mmsghdr array */
+	msg_buf  = malloc_payload_buffer(p->msg_sz); /* Alloc payload buffer */
+	mmsg_hdr = malloc_mmsghdr(p->batch);         /* Alloc mmsghdr array */
 	msg_iov  = malloc_iovec(iov_array_elems); /* Alloc I/O vector array */
 
 	/*** Setup packet structure for transmitting ***/
 
 	/* Setup io-vector pointers to payload data */
 	msg_iov[0].iov_base = msg_buf;
-	msg_iov[0].iov_len  = msg_sz;
+	msg_iov[0].iov_len  = p->msg_sz;
 	/* The io-vector supports scattered payload data, below add a simpel
 	 * testcase with same payload, adjust iov_array_elems > 1 to activate code
 	 */
 	for (i = 1; i < iov_array_elems; i++) {
 		msg_iov[i].iov_base = msg_buf;
-		msg_iov[i].iov_len  = msg_sz;
+		msg_iov[i].iov_len  = p->msg_sz;
 	}
 
-	for (pkt = 0; pkt < batch; pkt++) {
+	for (pkt = 0; pkt < p->batch; pkt++) {
 		/* The destination addr */
-		mmsg_hdr[pkt].msg_hdr.msg_name    = dest_addr;
+		mmsg_hdr[pkt].msg_hdr.msg_name    = &p->dest_addr;
 		mmsg_hdr[pkt].msg_hdr.msg_namelen = addrlen;
 		/* Binding io-vector to packet setup struct */
 		mmsg_hdr[pkt].msg_hdr.msg_iov    = msg_iov;
@@ -365,15 +371,20 @@ static int flood_with_sendMmsg(int sockfd, struct sockaddr_storage *dest_addr,
 	}
 
 	/* Flood loop */
-	for (cnt = 0; cnt < count; cnt++) {
+	for (cnt = 0; cnt < batches; cnt++) {
 //		res = sendmmsg(sockfd, mmsg_hdr, batch, 0);
-		res = syscall(__NR_sendmmsg, sockfd, mmsg_hdr, batch, 0);
+		res = syscall(__NR_sendmmsg, sockfd, mmsg_hdr, p->batch, 0);
 
-		if (res < 0) {
+		if (res < 0)
 			goto error;
-		}
 	}
-	res = cnt * batch;
+	if (last) {
+		res = syscall(__NR_sendmmsg, sockfd, mmsg_hdr, last, 0);
+		if (res < 0)
+			goto error;
+	}
+
+	res = p->count;
 	goto out;
 error:
 	/* Error case */
@@ -387,20 +398,18 @@ out:
 }
 
 
-static void time_function(int sockfd, struct sockaddr_storage *dest_addr,
-			  int count, int msg_sz, int batch,
-	int (*func)(int sockfd, struct sockaddr_storage *dest_addr,
-		    int count, int msg_sz, int batch))
+static void time_function(int sockfd, struct flood_params *p,
+	int (*func)(int sockfd, struct flood_params *p))
 {
 	uint64_t tsc_begin,  tsc_end,  tsc_interval;
 	uint64_t time_begin, time_end, time_interval;
 	int cnt_send;
-	double pps, ns_per_pkt, timesec;
-	uint64_t tsc_cycles;
+	double pps=0, ns_per_pkt=0, timesec=0;
+	uint64_t tsc_cycles = 0;
 
 	time_begin = gettime();
 	tsc_begin  = rdtsc();
-	cnt_send = func(sockfd, dest_addr, count, msg_sz, batch);
+	cnt_send = func(sockfd, p);
 	//cnt_send = flood_with_sendmsg(sockfd, dest_addr, count, msg_sz);
 	//cnt_send = flood_with_sendto(sockfd, dest_addr, count, msg_sz);
 	tsc_end  = rdtsc();
@@ -415,12 +424,24 @@ static void time_function(int sockfd, struct sockaddr_storage *dest_addr,
 	}
 
 	/* Stats */
-	pps        = cnt_send / ((double)time_interval / NANOSEC_PER_SEC);
-	tsc_cycles = tsc_interval / cnt_send;
-	ns_per_pkt = ((double)time_interval / cnt_send);
+	if (time_interval / NANOSEC_PER_SEC)
+		pps = cnt_send / ((double)time_interval / NANOSEC_PER_SEC);
+	if (cnt_send) {
+		tsc_cycles = tsc_interval / cnt_send;
+		ns_per_pkt = ((double)time_interval / cnt_send);
+	}
 	timesec    = ((double)time_interval / NANOSEC_PER_SEC);
 	print_result(tsc_cycles, ns_per_pkt, pps, timesec,
 		     cnt_send, tsc_interval);
+}
+
+static void init_params(struct flood_params *params)
+{
+	memset(params, 0, sizeof(struct flood_params));
+	params->count  = 1000000;
+	params->batch = 32;
+	params->msg_sz = 18; /* 18 +14(eth)+8(UDP)+20(IP)+4(Eth-CRC) = 64 bytes */
+	params->pmtu = -1;
 }
 
 int main(int argc, char *argv[])
@@ -429,29 +450,24 @@ int main(int argc, char *argv[])
 
 	/* Default settings */
 	int addr_family = AF_INET; /* Default address family */
-	int count = DEFAULT_COUNT;
-	int msg_sz = 18; /* 18 +14(eth)+8(UDP)+20(IP)+4(Eth-CRC) = 64 bytes */
+	struct flood_params p;
 	uint16_t dest_port = 6666;
 	char *dest_ip;
 	int run_flag = 0;
-	int batch = 32;
-	int pmtu = -1; /* Path MTU Discovery setting, affect DF bit */
 	int longindex = 0;
 
-	/* Support for both IPv4 and IPv6 */
-	struct sockaddr_storage dest_addr; /* Can contain both sockaddr_in and sockaddr_in6 */
-	memset(&dest_addr, 0, sizeof(dest_addr));
+	init_params(&p);
 
 	/* Parse commands line args */
-	while ((c = getopt_long(argc, argv, "hc:p:m:64v:tTuUb:",
+	while ((c = getopt_long(argc, argv, "hc:p:m:64Lv:tTuUb:",
 				long_options, &longindex)) != -1) {
-		if (c == 'c') count       = atoi(optarg);
+		if (c == 'c') p.count     = atoi(optarg);
 		if (c == 'p') dest_port   = atoi(optarg);
-		if (c == 'm') msg_sz      = atoi(optarg);
-		if (c == 'b') batch       = atoi(optarg);
+		if (c == 'm') p.msg_sz    = atoi(optarg);
+		if (c == 'b') p.batch     = atoi(optarg);
 		if (c == '4') addr_family = AF_INET;
 		if (c == '6') addr_family = AF_INET6;
-		if (c == 'd') pmtu        = atoi(optarg);
+		if (c == 'd') p.pmtu      = atoi(optarg);
 		if (c == 'v') verbose     = optarg ? atoi(optarg) : 1;
 		if (c == 'u') run_flag   |= RUN_SENDMSG;
 		if (c == 'U') run_flag   |= RUN_SENDMMSG;
@@ -472,48 +488,48 @@ int main(int argc, char *argv[])
 		run_flag = RUN_ALL;
 
 	/* Socket setup stuff */
-	sockfd = Socket(addr_family, SOCK_DGRAM, IPPROTO_IP);
+	sockfd = Socket(addr_family, SOCK_DGRAM, IPPROTO_UDP);
 
-	if (pmtu != -1) {
+	if (p.pmtu != -1) {
 		if (verbose > 0)
 			printf("setsockopt IP_MTU_DISCOVER: %s(%d)\n",
-			       pmtu_to_string(pmtu), pmtu);
+			       pmtu_to_string(p.pmtu), p.pmtu);
 		setsockopt(sockfd, SOL_IP, IP_MTU_DISCOVER,
-			   &pmtu, sizeof(pmtu));
+			   &p.pmtu, sizeof(p.pmtu));
 	}
 
 	/* Setup dest_addr depending on IPv4 or IPv6 address */
-	setup_sockaddr(addr_family, &dest_addr, dest_ip, dest_port);
+	setup_sockaddr(addr_family, &p.dest_addr, dest_ip, dest_port);
 
 	/* Connect to recv ICMP error messages, and to avoid the
 	 * kernel performing connect/unconnect cycles
 	 */
-	Connect(sockfd, (struct sockaddr *)&dest_addr, sockaddr_len(&dest_addr));
+	Connect(sockfd, (struct sockaddr *)&p.dest_addr, sockaddr_len(&p.dest_addr));
 
 	if (!verbose)
 		printf("             \tns/pkt\tpps\t\ttsc_int\n");
 	if (run_flag & RUN_SEND) {
 		print_header("send", 0);
-		time_function(sockfd, &dest_addr, count, msg_sz, 0, flood_with_send);
+		time_function(sockfd, &p, flood_with_send);
 	}
 	if (run_flag & RUN_SENDTO) {
 		print_header("sendto", 0);
-		time_function(sockfd, &dest_addr, count, msg_sz, 0, flood_with_sendto);
+		time_function(sockfd, &p, flood_with_sendto);
 	}
 
 	if (run_flag & RUN_SENDMSG) {
 		print_header("sendmsg", 0);
-		time_function(sockfd, &dest_addr, count, msg_sz, 0, flood_with_sendmsg);
+		time_function(sockfd, &p, flood_with_sendmsg);
 	}
 
 	if (run_flag & RUN_SENDMMSG) {
-		print_header("sendMmsg", batch);
-		time_function(sockfd, &dest_addr, count, msg_sz, batch, flood_with_sendMmsg);
+		print_header("sendMmsg", p.batch);
+		time_function(sockfd, &p, flood_with_sendMmsg);
 	}
 
 	if (run_flag & RUN_WRITE) {
 		print_header("write", 0);
-		time_function(sockfd, &dest_addr, count, msg_sz, 0, flood_with_write);
+		time_function(sockfd, &p, flood_with_write);
 	}
 
 	close(sockfd);
