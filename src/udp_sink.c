@@ -41,13 +41,21 @@ static const char *__doc__=
 #define RUN_READ      0x8
 #define RUN_ALL       (RUN_RECVMSG | RUN_RECVMMSG | RUN_RECVFROM | RUN_READ)
 
-int waitforone = 0;
-int sk_timeout = -1;
-int timeout = -1;
-int check = 0;
-long long ooo = 0;
-long long bad_magic = 0;
-long long bad_repeat = 0;
+struct sink_params {
+	int batch;
+	int count;
+	int repeat;
+	int waitforone;
+	int sk_timeout;
+	int timeout;
+	int check;
+	int connect;
+	int so_reuseport;
+	int buf_sz;
+	long long ooo;
+	long long bad_magic;
+	long long bad_repeat;
+};
 
 static const struct option long_options[] = {
 	/* keep recv functions grouped together */
@@ -105,14 +113,14 @@ static int usage(char *argv[])
 	return EXIT_FAIL_OPTION;
 }
 
-static void check_pkt(struct iovec *iov, int nr, int len)
+static void check_pkt(struct iovec *iov, int nr, int len, struct sink_params *p)
 {
 	static struct pktgen_hdr last = { .pgh_magic = 0 };
 	int offset = 0, i = 0, hdr = 0, l = len;
 	struct pktgen_hdr _pgh, *pgh = NULL, current = { .pgh_magic = 0 };
 	int cur_len;
 
-	if (!check)
+	if (!p->check)
 		return;
 
 	cur_len = len < iov[i].iov_len ? len : iov[i].iov_len;
@@ -141,7 +149,7 @@ static void check_pkt(struct iovec *iov, int nr, int len)
 		if (hdr == 0) {
 			/* first header check seqnum and magic */
 			if (ntohl(pgh->pgh_magic) != PKTGEN_MAGIC)
-				++bad_magic;
+				++p->bad_magic;
 
 			if (last.pgh_magic && ((pgh->tv_sec < last.tv_sec) ||
 			           (pgh->tv_sec == last.tv_sec &&
@@ -150,27 +158,27 @@ static void check_pkt(struct iovec *iov, int nr, int len)
 			            pgh->tv_usec == last.tv_usec &&
 			            pgh->seq_num < last.seq_num &&
 			            last.seq_num < 3*1000*1000*1000u)))
-				++ooo;
+				++p->ooo;
 
 			/* the "check-pktgen" option can be specified multiple
 			 * times,
 			 * check strictly the seq_num only we get 3 of them
 			 */
-			if ((check > 2) && last.pgh_magic)
+			if ((p->check > 2) && last.pgh_magic)
 				if (pgh->seq_num != last.seq_num + 1)
-					++ooo;
+					++p->ooo;
 
 			last = *pgh;
 			/* the header is expected to be repeated filling the
 			 * whole packet only if the "check-pktgen" option
 			 * is specifed at least twice
 			 */
-			if (check < 2)
+			if (p->check < 2)
 				break;
 
 			current = *pgh;
 		} else if (memcmp(&current, pgh, sizeof(current)))
-			bad_repeat++;
+			p->bad_repeat++;
 
 		hdr++;
 
@@ -185,9 +193,9 @@ static void check_pkt(struct iovec *iov, int nr, int len)
 		}
 	}
 
-	if ((check > 2) && (ooo || bad_repeat || bad_magic)) {
-		printf("%s with packet len %d iov nr %d\n", ooo ? "OoO" :
-			(bad_repeat ? "bad repeated hdr" : "bad magic"),
+	if ((p->check > 2) && (p->ooo || p->bad_repeat || p->bad_magic)) {
+		printf("%s with packet len %d iov nr %d\n", p->ooo ? "OoO" :
+			(p->bad_repeat ? "bad repeated hdr" : "bad magic"),
 			l, nr);
 	}
 
@@ -195,14 +203,13 @@ static void check_pkt(struct iovec *iov, int nr, int len)
 		last = current;
 }
 
-static int sink_with_read(int sockfd, int count, int batch) {
+static int sink_with_read(int sockfd, struct sink_params *p) {
 	int i, res;
 	uint64_t total = 0;
-	int buf_sz = 4096;
-	char *buffer = malloc_payload_buffer(buf_sz);
+	char *buffer = malloc_payload_buffer(p->buf_sz);
 
-	for (i = 0; i < count; i++) {
-		res = read(sockfd, buffer, buf_sz);
+	for (i = 0; i < p->count; i++) {
+		res = read(sockfd, buffer, p->buf_sz);
 		if (res < 0)
 			goto error;
 		total += res;
@@ -222,14 +229,13 @@ static int sink_with_read(int sockfd, int count, int batch) {
 	exit(EXIT_FAIL_SOCK);
 }
 
-static int sink_with_recvfrom(int sockfd, int count, int batch) {
+static int sink_with_recvfrom(int sockfd, struct sink_params *p) {
 	int i, res;
 	uint64_t total = 0;
-	int buf_sz = 4096;
-	char *buffer = malloc_payload_buffer(buf_sz);
+	char *buffer = malloc_payload_buffer(p->buf_sz);
 
-	for (i = 0; i < count; i++) {
-		res = recvfrom(sockfd, buffer, buf_sz, 0, NULL, NULL);
+	for (i = 0; i < p->count; i++) {
+		res = recvfrom(sockfd, buffer, p->buf_sz, 0, NULL, NULL);
 		if (res < 0)
 			goto error;
 		total += res;
@@ -251,14 +257,13 @@ static int sink_with_recvfrom(int sockfd, int count, int batch) {
 }
 
 
-static int sink_with_recvmsg(int sockfd, int count, int batch) {
+static int sink_with_recvmsg(int sockfd, struct sink_params *p) {
 	int i, res;
 	uint64_t total = 0;
-	int buf_sz = 4096;
-	char *buffer = malloc_payload_buffer(buf_sz);
+	char *buffer = malloc_payload_buffer(p->buf_sz);
 	struct msghdr *msg_hdr;  /* struct for setting up transmit */
 	struct iovec  *msg_iov;  /* io-vector: array of pointers to payload data */
-	unsigned int iov_array_elems = batch; /* test scattered payload */
+	unsigned int iov_array_elems = 1; /* test scattered payload */
 
 	msg_hdr = malloc_msghdr();               /* Alloc msghdr setup structure */
 	msg_iov = malloc_iovec(iov_array_elems); /* Alloc I/O vector array */
@@ -269,13 +274,13 @@ static int sink_with_recvmsg(int sockfd, int count, int batch) {
 	msg_hdr->msg_namelen = 0;
 	/* Setup io-vector pointers for receiving payload data */
 	msg_iov[0].iov_base = buffer;
-	msg_iov[0].iov_len  = buf_sz;
+	msg_iov[0].iov_len  = p->buf_sz;
 	/* The io-vector supports scattered payload data, below add a simpel
 	 * testcase with dst payload, adjust iov_array_elems > 1 to activate code
 	 */
 	for (i = 1; i < iov_array_elems; i++) {
 		msg_iov[i].iov_base = buffer;
-		msg_iov[i].iov_len  = buf_sz;
+		msg_iov[i].iov_len  = p->buf_sz;
 	}
 	/* Binding io-vector to packet setup struct */
 	msg_hdr->msg_iov    = msg_iov;
@@ -288,20 +293,21 @@ static int sink_with_recvmsg(int sockfd, int count, int batch) {
 	 */
 
 	/* Receive LOOP */
-	for (i = 0; i < count; i++) {
+	for (i = 0; i < p->count; i++) {
 		res = recvmsg(sockfd, msg_hdr, 0);
 		if (res < 0)
 			goto error;
 
-		check_pkt(msg_iov, iov_array_elems, res);
+		check_pkt(msg_iov, iov_array_elems, res, p);
+
 		total += res;
 	}
 	if (verbose > 0)
 		printf(" - read %lu bytes in %d packets = %lu bytes payload\n",
 		       total, i, total / i);
-	if (ooo || bad_magic || bad_repeat)
+	if (p->check)
 		printf(" - failed checks OoO %lld wrong magic %lld bad repeat %lld\n",
-		       ooo, bad_magic, bad_repeat);
+		       p->ooo, p->bad_magic, p->bad_repeat);
 
 	free(msg_iov);
 	free(msg_hdr);
@@ -330,14 +336,13 @@ static int sink_with_recvmsg(int sockfd, int count, int batch) {
 	};
 */
 
-static int sink_with_recvMmsg(int sockfd, int count, int batch) {
+static int sink_with_recvMmsg(int sockfd, struct sink_params *p) {
 	int cnt, i, res, pkt, batches = 0;
-	uint64_t total = 0, packets;
-	int buf_sz = 4096;
-	char *buffer = malloc_payload_buffer(buf_sz);
+	uint64_t total = 0, packets, flags;
+	char *buffer = malloc_payload_buffer(p->buf_sz);
 	struct iovec  *msg_iov;  /* io-vector: array of pointers to payload data */
 	unsigned int iov_array_elems = 1; /* test scattered payload */
-	struct timespec __ts, ___ts = { .tv_sec = timeout, .tv_nsec = 0};
+	struct timespec __ts, ___ts = { .tv_sec = p->timeout, .tv_nsec = 0};
 	struct timespec *ts = NULL;
 
 	/* struct *mmsghdr -  pointer to an array of mmsghdr structures.
@@ -347,23 +352,23 @@ static int sink_with_recvMmsg(int sockfd, int count, int batch) {
 	 */
 	struct mmsghdr *mmsg_hdr;
 
-	mmsg_hdr = malloc_mmsghdr(batch);         /* Alloc mmsghdr array */
-	msg_iov  = malloc_iovec(iov_array_elems*batch); /* Alloc I/O vector array */
+	mmsg_hdr = malloc_mmsghdr(p->batch);         /* Alloc mmsghdr array */
+	msg_iov  = malloc_iovec(iov_array_elems*p->batch); /* Alloc I/O vector array */
 
 	/*** Setup packet structure for receiving
 	 ***/
 	/* Setup io-vector pointers for receiving payload data */
-	for (pkt=0; pkt < batch; ++pkt) {
+	for (pkt=0; pkt < p->batch; ++pkt) {
 		/* The io-vector supports scattered payload data, below add a simpel
 		* testcase with dst payload, adjust iov_array_elems > 1 to activate code
 		*/
 		for (i = 0; i < iov_array_elems; i++) {
-			msg_iov[pkt+i].iov_base = malloc(buf_sz);
-			msg_iov[pkt+i].iov_len  = buf_sz;
+			msg_iov[pkt+i].iov_base = malloc(p->buf_sz);
+			msg_iov[pkt+i].iov_len  = p->buf_sz;
 		}
 	}
 
-	for (pkt = 0; pkt < batch; pkt++) {
+	for (pkt = 0; pkt < p->batch; pkt++) {
 		/* The senders info is stored here but we don't care, so use NULL */
 		mmsg_hdr[pkt].msg_hdr.msg_name    = NULL;
 		mmsg_hdr[pkt].msg_hdr.msg_namelen = 0;
@@ -372,16 +377,15 @@ static int sink_with_recvMmsg(int sockfd, int count, int batch) {
 		mmsg_hdr[pkt].msg_hdr.msg_iovlen = iov_array_elems;
 	}
 
-	if (timeout >= 0)
+	if (p->timeout >= 0)
 		ts = &__ts;
 
+	flags = p->waitforone ? MSG_WAITFORONE: 0;
+
 	/* Receive LOOP */
-	for (cnt = 0; cnt < count; ) {
-		if (ts)
-			__ts = ___ts;
-		res = recvmmsg(sockfd, mmsg_hdr, batch, waitforone ?
-						       MSG_WAITFORONE: 0, ts);
-//		res = syscall(__NR_recvmmsg, sockfd, mmsg_hdr, batch, 0, NULL);
+	for (cnt = 0; cnt < p->count; ) {
+		__ts = ___ts;
+		res = recvmmsg(sockfd, mmsg_hdr, p->batch, flags, ts);
 		if (res < 0)
 			goto error;
 		batches++;
@@ -389,7 +393,7 @@ static int sink_with_recvMmsg(int sockfd, int count, int batch) {
 			total += mmsg_hdr[pkt].msg_len;
 			check_pkt(mmsg_hdr[pkt].msg_hdr.msg_iov,
 				  mmsg_hdr[pkt].msg_hdr.msg_iovlen,
-				  mmsg_hdr[pkt].msg_len);
+				  mmsg_hdr[pkt].msg_len, p);
 		}
 		cnt += res;
 	}
@@ -398,14 +402,14 @@ static int sink_with_recvMmsg(int sockfd, int count, int batch) {
 		printf(" - read %lu bytes in %lu packets= %lu bytes "
 			       "payload", total, packets,
 			       packets ? total / packets: 0);
-		if (waitforone)
+		if (p->waitforone)
 			printf("= %ld avg batch len",
 			       batches ? packets / batches : 0);
 		printf(" (loop %d)\n", batches);
 	}
-	if (ooo || bad_magic || bad_repeat)
+	if (p->check)
 		printf(" - failed checks OoO %lld wrong magic %lld bad repeat %lld\n",
-		       ooo, bad_magic, bad_repeat);
+		       p->ooo, p->bad_magic, p->bad_repeat);
 
 	for (i = 1; i < iov_array_elems; i++)
 		free(msg_iov[i].iov_base);
@@ -428,9 +432,8 @@ static int sink_with_recvMmsg(int sockfd, int count, int batch) {
 
 
 
-static void time_function(int sockfd, int count, int repeat, int batch,
-			  bool do_connect,
-			  int (*func)(int sockfd, int count, int batch))
+static void time_function(int sockfd, struct sink_params *p,
+			  int (*func)(int sockfd, struct sink_params *p))
 {
 	uint64_t tsc_begin,  tsc_end,  tsc_interval, tsc_cycles;
 	uint64_t time_begin, time_end, time_interval;
@@ -486,28 +489,31 @@ static void time_function(int sockfd, int count, int repeat, int batch,
 		perror("- inet_ntop");
 		goto socket_error;
 	}
-	if (verbose && !do_connect)
+	if (verbose && !p->connect)
 		printf("  * Got first packet from IP:port %s:%d\n",
 		       from_ip, ntohs(src_port));
 
-	if (do_connect) {
+	if (p->connect) {
 		if (verbose)
 			printf("  * Connect UDP sock to src IP:port %s:%d\n",
 			       from_ip, ntohs(src_port));
 		Connect(sockfd, src, addrlen);
+
+	if (verbose)
+		printf("  * Got first packet (starting timing)\n");
 	}
 
-	for (j = 0; j < repeat; j++) {
+	for (j = 0; j < p->repeat; j++) {
 		if (verbose) {
 			printf(" Test run: %d (expecting to receive %d pkts)\n",
-			       j, count);
+			       j, p->count);
 		} else {
-			printf("run: %d %d\t", j, count);
+			printf("run: %d %d\t", j, p->count);
 		}
 
 		time_begin = gettime();
 		tsc_begin  = rdtsc();
-		cnt_recv = func(sockfd, count, batch);
+		cnt_recv = func(sockfd, p);
 		tsc_end  = rdtsc();
 		time_end = gettime();
 		tsc_interval  = tsc_end  - tsc_begin;
@@ -536,23 +542,32 @@ socket_error:
 	exit(EXIT_FAIL_SOCK);
 }
 
+static void init_params(struct sink_params *params)
+{
+	memset(params, 0, sizeof(struct sink_params));
+	params->timeout = -1;
+	params->sk_timeout = -1;
+	params->count  = 1000000;
+	params->repeat = 2;
+	params->batch = 32;
+	params->buf_sz = 4096;
+}
+
 int main(int argc, char *argv[])
 {
+	struct sink_params p;
 	int sockfd, c;
-	int count  = DEFAULT_COUNT;
-	int repeat = 1;
-	int so_reuseport = 0;
 
 	/* Default settings */
 	int addr_family = AF_INET; /* Default address family */
 	uint16_t listen_port = 6666;
-	bool do_connect = 0;
 	int longindex = 0;
 	int run_flag = 0;
-	int batch = 32;
 
 	/* Support for both IPv4 and IPv6 */
 	struct sockaddr_storage listen_addr; /* Can contain both sockaddr_in and sockaddr_in6 */
+
+	init_params(&p);
 
 	/* Parse commands line args */
 	while ((c = getopt_long(argc, argv, "hc:r:l:64Oi:I:sCv:tTuUb:",
@@ -561,19 +576,19 @@ int main(int argc, char *argv[])
 			/* handle options without short version */
 			if (!strcmp(long_options[longindex].name,
 				    "check-pktgen"))
-				check++;
+				p.check++;
 		}
-		if (c == 'c') count       = atoi(optarg);
-		if (c == 'r') repeat      = atoi(optarg);
-		if (c == 'b') batch       = atoi(optarg);
+		if (c == 'c') p.count     = atoi(optarg);
+		if (c == 'r') p.repeat    = atoi(optarg);
+		if (c == 'b') p.batch     = atoi(optarg);
 		if (c == 'l') listen_port = atoi(optarg);
 		if (c == '4') addr_family = AF_INET;
 		if (c == '6') addr_family = AF_INET6;
-		if (c == 'O') waitforone  = 1;
-		if (c == 'i') timeout     = atoi(optarg);
-		if (c == 'I') sk_timeout  = atoi(optarg);
-		if (c == 's') so_reuseport= 1;
-		if (c == 'C') do_connect  = 1;
+		if (c == 'O') p.waitforone  = 1;
+		if (c == 'i') p.timeout     = atoi(optarg);
+		if (c == 'I') p.sk_timeout  = atoi(optarg);
+		if (c == 's') p.so_reuseport= 1;
+		if (c == 'C') p.connect  = 1;
 		if (c == 'v') verbose     = optarg ? atoi(optarg) : 1;
 		if (c == 'u') run_flag   |= RUN_RECVMSG;
 		if (c == 'U') run_flag   |= RUN_RECVMMSG;
@@ -589,13 +604,12 @@ int main(int argc, char *argv[])
 		run_flag = RUN_ALL;
 
 	/* Socket setup stuff */
-//	sockfd = Socket(addr_family, SOCK_DGRAM, IPPROTO_IP);
 	sockfd = Socket(addr_family, SOCK_DGRAM, IPPROTO_UDP);
 
 	/* Enable use of SO_REUSEPORT for multi-process testing  */
-	if (so_reuseport) {
+	if (p.so_reuseport) {
 		if ((setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT,
-				&so_reuseport, sizeof(so_reuseport))) < 0) {
+				&p.so_reuseport, sizeof(p.so_reuseport))) < 0) {
 			    printf("ERROR: No support for SO_REUSEPORT\n");
 			    perror("- setsockopt(SO_REUSEPORT)");
 			    exit(EXIT_FAIL_SOCKOPT);
@@ -603,7 +617,6 @@ int main(int argc, char *argv[])
 	}
 
 	/* Setup listen_addr depending on IPv4 or IPv6 address */
-	//setup_sockaddr(addr_family, &listen_addr, dest_ip, dest_port);
 	memset(&listen_addr, 0, sizeof(listen_addr));
 	if (addr_family == AF_INET) {
 		struct sockaddr_in *addr4 = (struct sockaddr_in *)&listen_addr;
@@ -617,8 +630,8 @@ int main(int argc, char *argv[])
 
 	Bind(sockfd, &listen_addr);
 
-	if (sk_timeout >= 0) {
-		struct timeval tv = { sk_timeout, 0 };
+	if (p.sk_timeout >= 0) {
+		struct timeval tv = { p.sk_timeout, 0 };
 
 		if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv,
 			       sizeof(tv)) < 0) {
@@ -628,27 +641,23 @@ int main(int argc, char *argv[])
 	}
 
 	if (run_flag & RUN_RECVMMSG) {
-		print_header("recvMmsg", batch);
-		time_function(sockfd, count, repeat, batch, do_connect,
-			      sink_with_recvMmsg);
+		print_header("recvMmsg", p.batch);
+		time_function(sockfd, &p, sink_with_recvMmsg);
 	}
 
 	if (run_flag & RUN_RECVMSG) {
 		print_header("recvmsg", 0);
-		time_function(sockfd, count, repeat, 1, do_connect,
-			      sink_with_recvmsg);
+		time_function(sockfd, &p, sink_with_recvmsg);
 	}
 
 	if (run_flag & RUN_READ) {
 		print_header("read", 0);
-		time_function(sockfd, count, repeat, 0, do_connect,
-			      sink_with_read);
+		time_function(sockfd, &p, sink_with_read);
 	}
 
 	if (run_flag & RUN_RECVFROM) {
 		print_header("recvfrom", 0);
-		time_function(sockfd, count, repeat, 0, do_connect,
-			      sink_with_recvfrom);
+		time_function(sockfd, &p, sink_with_recvfrom);
 	}
 
 	close(sockfd);
