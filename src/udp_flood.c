@@ -22,6 +22,7 @@ static const char *__doc__=
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/uio.h> /* struct iovec */
+#include <time.h>
 
 #include <getopt.h>
 
@@ -45,6 +46,7 @@ struct flood_params {
 	int count;
 	int msg_sz;
 	int pmtu; /* Path MTU Discovery setting, affect DF bit */
+	int pktgen_hdr;
 
 	/* Support for both IPv4 and IPv6 */
 	struct sockaddr_storage dest_addr;
@@ -55,6 +57,7 @@ static const struct option long_options[] = {
 	{"ipv4",	no_argument,		NULL, '4' },
 	{"ipv6",	no_argument,		NULL, '6' },
 	{"lite",	no_argument,		NULL, 'L' },
+	{"pktgen-header", no_argument,		NULL, 'P' },
 	/* keep these grouped together */
 	{"sendmsg",	no_argument,		NULL, 'u' },
 	{"sendmmsg",	no_argument,		NULL, 'U' },
@@ -144,6 +147,28 @@ static int usage(char *argv[])
 	return EXIT_FAIL_OPTION;
 }
 
+static void fill_buf(const struct flood_params *p, char *buf, int len)
+{
+	static uint32_t sequence = 0;
+	struct pktgen_hdr hdr;
+	struct timespec ts;
+	int l;
+
+	if (!p->pktgen_hdr)
+		return;
+
+	clock_gettime(CLOCK_REALTIME_COARSE, &ts);
+	hdr.tv_sec = ts.tv_sec;
+	hdr.tv_usec = ts.tv_nsec * 1000;
+	hdr.pgh_magic = htonl(PKTGEN_MAGIC);
+	hdr.seq_num = sequence++;
+	for (l = 0; l < len; l += sizeof(hdr)) {
+		int cur_len = (len - l < sizeof(hdr)) ? len - l : sizeof(hdr);
+
+		memcpy(buf + l, &hdr, cur_len);
+	}
+}
+
 static int flood_with_sendto(int sockfd, struct flood_params *p)
 {
 	char *msg_buf;
@@ -155,6 +180,7 @@ static int flood_with_sendto(int sockfd, struct flood_params *p)
 
 	/* Flood loop */
 	for (cnt = 0; cnt < p->count; cnt++) {
+		fill_buf(p, msg_buf, p->msg_sz);
 		res = sendto(sockfd, msg_buf, p->msg_sz, 0,
 			     (struct sockaddr *) &p->dest_addr, addrlen);
 		if (res < 0) {
@@ -205,6 +231,7 @@ static int flood_with_write(int sockfd, struct flood_params *p)
 
 	/* Flood loop */
 	for (cnt = 0; cnt < p->count; cnt++) {
+		fill_buf(p, msg_buf, p->msg_sz);
 		res = write(sockfd, msg_buf, p->msg_sz);
 		if (res < 0) {
 			fprintf(stderr, "Managed to send %d packets\n", cnt);
@@ -275,13 +302,13 @@ static int flood_with_sendmsg(int sockfd, struct flood_params *p)
 
 	/* Setup io-vector pointers to payload data */
 	msg_iov[0].iov_base = msg_buf;
-	msg_iov[0].iov_len  = p->msg_sz;
+	msg_iov[0].iov_len  = p->msg_sz / iov_array_elems;
 	/* The io-vector supports scattered payload data, below add a simpel
 	 * testcase with same payload, adjust iov_array_elems > 1 to activate code
 	 */
 	for (i = 1; i < iov_array_elems; i++) {
-		msg_iov[i].iov_base = msg_buf;
-		msg_iov[i].iov_len  = p->msg_sz;
+		msg_iov[i].iov_base = msg_buf + (p->msg_sz / iov_array_elems) * i;
+		msg_iov[i].iov_len  = p->msg_sz / iov_array_elems;
 	}
 	/* Binding io-vector to packet setup struct */
 	msg_hdr->msg_iov    = msg_iov;
@@ -289,6 +316,7 @@ static int flood_with_sendmsg(int sockfd, struct flood_params *p)
 
 	/* Flood loop */
 	for (cnt = 0; cnt < p->count; cnt++) {
+		fill_buf(p, msg_buf, p->msg_sz);
 		res = sendmsg(sockfd, msg_hdr, 0);
 		if (res < 0) {
 			goto error;
@@ -325,6 +353,7 @@ out:
  */
 static int flood_with_sendMmsg(int sockfd, struct flood_params *p)
 {
+	int total_size = p->batch * p->msg_sz; /* total amount to be allocated */
 	char          *msg_buf;  /* payload data */
 	struct iovec  *msg_iov;  /* io-vector: array of pointers to payload data */
 	unsigned int  iov_array_elems = 1; /*adjust to test scattered payload */
@@ -346,34 +375,35 @@ static int flood_with_sendMmsg(int sockfd, struct flood_params *p)
 	if (verbose > 0)
 		fprintf(stderr, " - batching %d packets in sendmmsg\n", p->batch);
 
-	msg_buf  = malloc_payload_buffer(p->msg_sz); /* Alloc payload buffer */
+	msg_buf  = malloc_payload_buffer(total_size); /* Alloc payload buffer */
 	mmsg_hdr = malloc_mmsghdr(p->batch);         /* Alloc mmsghdr array */
-	msg_iov  = malloc_iovec(iov_array_elems); /* Alloc I/O vector array */
+	msg_iov  = malloc_iovec(iov_array_elems * p->batch); /* Alloc I/O vector array */
 
 	/*** Setup packet structure for transmitting ***/
-
-	/* Setup io-vector pointers to payload data */
-	msg_iov[0].iov_base = msg_buf;
-	msg_iov[0].iov_len  = p->msg_sz;
-	/* The io-vector supports scattered payload data, below add a simpel
-	 * testcase with same payload, adjust iov_array_elems > 1 to activate code
-	 */
-	for (i = 1; i < iov_array_elems; i++) {
-		msg_iov[i].iov_base = msg_buf;
-		msg_iov[i].iov_len  = p->msg_sz;
-	}
-
 	for (pkt = 0; pkt < p->batch; pkt++) {
+		char *base = msg_buf + pkt * p->msg_sz;
+		int incr = p->msg_sz / iov_array_elems;
+		int iov_idx = pkt * iov_array_elems;
+
+		/* Setup io-vector pointers to payload data */
+		for (i = 0; i < iov_array_elems; i++) {
+			msg_iov[iov_idx + i].iov_base = base + i * incr;
+			msg_iov[iov_idx + i].iov_len  = incr;
+		}
+
 		/* The destination addr */
 		mmsg_hdr[pkt].msg_hdr.msg_name    = &p->dest_addr;
 		mmsg_hdr[pkt].msg_hdr.msg_namelen = addrlen;
 		/* Binding io-vector to packet setup struct */
-		mmsg_hdr[pkt].msg_hdr.msg_iov    = msg_iov;
+		mmsg_hdr[pkt].msg_hdr.msg_iov    = &msg_iov[iov_idx];
 		mmsg_hdr[pkt].msg_hdr.msg_iovlen = iov_array_elems;
 	}
 
 	/* Flood loop */
 	for (cnt = 0; cnt < batches; cnt++) {
+		if (p->pktgen_hdr)
+			for (pkt = 0; pkt < p->batch; pkt++)
+				fill_buf(p, msg_buf + pkt * p->msg_sz, p->msg_sz);
 //		res = sendmmsg(sockfd, mmsg_hdr, batch, 0);
 		res = syscall(__NR_sendmmsg, sockfd, mmsg_hdr, p->batch, 0);
 
@@ -381,6 +411,9 @@ static int flood_with_sendMmsg(int sockfd, struct flood_params *p)
 			goto error;
 	}
 	if (last) {
+		if (p->pktgen_hdr)
+			for (pkt = 0; pkt < p->batch; pkt++)
+				fill_buf(p, msg_buf + pkt * p->msg_sz, p->msg_sz);
 		res = syscall(__NR_sendmmsg, sockfd, mmsg_hdr, last, 0);
 		if (res < 0)
 			goto error;
@@ -461,12 +494,13 @@ int main(int argc, char *argv[])
 	init_params(&p);
 
 	/* Parse commands line args */
-	while ((c = getopt_long(argc, argv, "hc:p:m:64Lv:tTuUb:",
+	while ((c = getopt_long(argc, argv, "hc:p:m:64PLv:tTuUb:",
 				long_options, &longindex)) != -1) {
 		if (c == 'c') p.count     = atoi(optarg);
 		if (c == 'p') dest_port   = atoi(optarg);
 		if (c == 'm') p.msg_sz    = atoi(optarg);
 		if (c == 'b') p.batch     = atoi(optarg);
+		if (c == 'P') p.pktgen_hdr= 1;
 		if (c == '4') addr_family = AF_INET;
 		if (c == '6') addr_family = AF_INET6;
 		if (c == 'd') p.pmtu      = atoi(optarg);
