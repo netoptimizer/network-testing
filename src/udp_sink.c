@@ -60,6 +60,8 @@ struct sink_params {
 	int so_reuseport;
 	int buf_sz;
 	unsigned int run_flag;
+	unsigned int run_flag_curr;
+	/* TODO: Below stats should move to separate stats struct */
 	long long ooo;
 	long long bad_magic;
 	long long bad_repeat;
@@ -79,7 +81,7 @@ static const struct option long_options[] = {
 	{"waitforone",	no_argument,		NULL, 'O' },
 	{"timeout",	required_argument,	NULL, 'i' },
 	{"sk-timeout",	required_argument,	NULL, 'I' },
-	{"check-pktgen",no_argument,		NULL, 0 },
+	{"check-pktgen",optional_argument,	NULL, 0 },
 	{"nr-iovec",	required_argument,	NULL, 0 },
 	{"check-sender",required_argument,	NULL, 'S' },
 	{"lite",	no_argument,		NULL, 'L' },
@@ -124,6 +126,12 @@ static int usage(char *argv[])
 	printf("     -u -U -t -T: run any combination of"
 			" recvmsg/recvmmsg/recvfrom/read\n");
 	printf("\n");
+	printf("Hint: Following options takes an optional argument:\n"
+	       "  verbose=N and check-pktgen=N\n"
+	       "Notice must be specified with an equal sign "
+	       "(due to strange choice of getopt_long)\n"
+		);
+	printf("\n");
 
 	return EXIT_FAIL_OPTION;
 }
@@ -134,9 +142,6 @@ static void __check_pkt(struct iovec *iov, int nr, int len, struct sink_params *
 	int offset = 0, i = 0, hdr = 0, l = len;
 	struct pktgen_hdr _pgh, *pgh = NULL, current = { .pgh_magic = 0 };
 	int cur_len;
-
-	if (!p->check)
-		return;
 
 	cur_len = len < iov[i].iov_len ? len : iov[i].iov_len;
 	len -= cur_len;
@@ -180,18 +185,14 @@ static void __check_pkt(struct iovec *iov, int nr, int len, struct sink_params *
 			            last.seq_num < 3*1000*1000*1000u)))
 				++p->ooo;
 
-			/* the "check-pktgen" option can be specified multiple
-			 * times,
-			 * check strictly the seq_num only we get 3 of them
-			 */
+			/* check-pktgen level 3 */
 			if ((p->check > 2) && last.pgh_magic)
 				if (pgh->seq_num != last.seq_num + 1)
 					++p->ooo;
 
 			last = *pgh;
-			/* the header is expected to be repeated filling the
-			 * whole packet only if the "check-pktgen" option
-			 * is specifed at least twice
+			/* Header is expected to be repeated filling
+			 * whole packet, verify at "check-pktgen" level 2
 			 */
 			if (p->check < 2)
 				break;
@@ -231,6 +232,18 @@ void check_pkt(struct iovec *iov, int nr, int len, struct sink_params *p)
 		return;
 
 	__check_pkt(iov, nr, len, p);
+}
+
+void print_check_result(struct sink_params *p)
+{
+	if ((p->check)
+	    /* Notice: pktgen check only implemented for some functions */
+	    && (p->run_flag_curr & (RUN_RECVMMSG | RUN_RECVMSG)))
+	{
+		printf(" - Failed pktgen checks OoO %lld wrong magic %lld"
+		       " bad repeat %lld\n",
+		       p->ooo, p->bad_magic, p->bad_repeat);
+	}
 }
 
 static int sink_with_read(int sockfd, struct sink_params *p) {
@@ -451,10 +464,6 @@ static int sink_with_recvmsg(int sockfd, struct sink_params *p) {
 	if (verbose > 0)
 		printf(" - read %lu bytes in %d packets = %lu bytes payload\n",
 		       total, i, total / i);
-	if (p->check)
-		printf(" - failed checks OoO %lld wrong magic %lld bad repeat %lld\n",
-		       p->ooo, p->bad_magic, p->bad_repeat);
-
 	free(msg_iov);
 	free(msg_hdr);
 	free(buffer);
@@ -562,9 +571,6 @@ static int sink_with_recvMmsg(int sockfd, struct sink_params *p) {
 			       batches ? packets / batches : 0);
 		printf(" (loop %d)\n", batches);
 	}
-	if (p->check)
-		printf(" - failed checks OoO %lld wrong magic %lld bad repeat %lld\n",
-		       p->ooo, p->bad_magic, p->bad_repeat);
 
 	for (pkt=0; pkt < p->batch; ++pkt)
 		free(msg_iov[pkt*p->iov_elems].iov_base);
@@ -585,7 +591,16 @@ static int sink_with_recvMmsg(int sockfd, struct sink_params *p) {
 	exit(EXIT_FAIL_SOCK);
 }
 
-
+static void init_stats(struct sink_params *params, unsigned int testrun)
+{
+	/* Params also contain some stats the need reset between runs.
+	 * TODO: Move these into stats section of struct
+	 */
+	params->ooo		= 0;
+	params->bad_magic	= 0;
+	params->bad_repeat	= 0;
+	params->run_flag_curr	= testrun;
+}
 
 static void time_function(int sockfd, struct sink_params *p,
 			  int (*func)(int sockfd, struct sink_params *p))
@@ -687,7 +702,10 @@ static void time_function(int sockfd, struct sink_params *p,
 		timesec    = ((double)time_interval / NANOSEC_PER_SEC);
 		print_result(tsc_cycles, ns_per_pkt, pps, timesec,
 			     cnt_recv, tsc_interval);
+		print_check_result(p);
+		init_stats(p, p->run_flag_curr);
 	}
+
 	return;
 
 socket_error:
@@ -729,7 +747,7 @@ int main(int argc, char *argv[])
 			/* handle options without short version */
 			if (!strcmp(long_options[longindex].name,
 				    "check-pktgen"))
-				p.check++;
+				p.check = optarg ? atoi(optarg) : 1;
 			if (!strcmp(long_options[longindex].name,
 				    "nr-iovec"))
 				p.iov_elems = atoi(optarg);
@@ -824,22 +842,26 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	if (p.run_flag & RUN_RECVMMSG) {
+	if (p.run_flag       & RUN_RECVMMSG) {
+		init_stats(&p, RUN_RECVMMSG);
 		print_header("recvMmsg", p.batch);
 		time_function(sockfd, &p, sink_with_recvMmsg);
 	}
 
-	if (p.run_flag & RUN_RECVMSG) {
+	if (p.run_flag       & RUN_RECVMSG) {
+		init_stats(&p, RUN_RECVMSG);
 		print_header("recvmsg", 0);
 		time_function(sockfd, &p, sink_with_recvmsg);
 	}
 
-	if (p.run_flag & RUN_READ) {
+	if (p.run_flag       & RUN_READ) {
+		init_stats(&p, RUN_READ);
 		print_header("read", 0);
 		time_function(sockfd, &p, sink_with_read);
 	}
 
-	if (p.run_flag & RUN_RECVFROM) {
+	if (p.run_flag       & RUN_RECVFROM) {
+		init_stats(&p, RUN_RECVFROM);
 		print_header("recvfrom", 0);
 		time_function(sockfd, &p, sink_with_recvfrom);
 	}
