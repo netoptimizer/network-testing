@@ -59,6 +59,7 @@ struct sink_params {
 	struct sockaddr_storage sender_addr;
 	int so_reuseport;
 	int buf_sz;
+	unsigned int run_flag;
 	long long ooo;
 	long long bad_magic;
 	long long bad_repeat;
@@ -698,6 +699,7 @@ static void init_params(struct sink_params *params)
 	params->batch = 32;
 	params->iov_elems = 1;
 	params->buf_sz = 4096;
+	params->run_flag = 0;
 }
 
 int main(int argc, char *argv[])
@@ -707,7 +709,6 @@ int main(int argc, char *argv[])
 	int addr_family = AF_INET; /* Default address family */
 	struct sink_params p;
 	int longindex = 0;
-	int run_flag = 0;
 	int sockfd, c;
 	int on = 1;
 
@@ -747,18 +748,18 @@ int main(int argc, char *argv[])
 		if (c == 'S') setup_sockaddr(addr_family, &p.sender_addr,
 					     optarg, 0);
 		if (c == 'v') verbose     = optarg ? atoi(optarg) : 1;
-		if (c == 'u') run_flag   |= RUN_RECVMSG;
-		if (c == 'U') run_flag   |= RUN_RECVMMSG;
-		if (c == 't') run_flag   |= RUN_RECVFROM;
-		if (c == 'T') run_flag   |= RUN_READ;
+		if (c == 'u') p.run_flag   |= RUN_RECVMSG;
+		if (c == 'U') p.run_flag   |= RUN_RECVMMSG;
+		if (c == 't') p.run_flag   |= RUN_RECVFROM;
+		if (c == 'T') p.run_flag   |= RUN_READ;
 		if (c == 'h' || c == '?') return usage(argv);
 	}
 
 	if (verbose > 0)
 		printf("Listen port %d\n", listen_port);
 
-	if (run_flag == 0)
-		run_flag = RUN_ALL;
+	if (p.run_flag == 0)
+		p.run_flag = RUN_ALL;
 
 	/* Socket setup stuff */
 	sockfd = Socket(addr_family, SOCK_DGRAM, p.lite ? IPPROTO_UDPLITE :
@@ -815,22 +816,22 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	if (run_flag & RUN_RECVMMSG) {
+	if (p.run_flag & RUN_RECVMMSG) {
 		print_header("recvMmsg", p.batch);
 		time_function(sockfd, &p, sink_with_recvMmsg);
 	}
 
-	if (run_flag & RUN_RECVMSG) {
+	if (p.run_flag & RUN_RECVMSG) {
 		print_header("recvmsg", 0);
 		time_function(sockfd, &p, sink_with_recvmsg);
 	}
 
-	if (run_flag & RUN_READ) {
+	if (p.run_flag & RUN_READ) {
 		print_header("read", 0);
 		time_function(sockfd, &p, sink_with_read);
 	}
 
-	if (run_flag & RUN_RECVFROM) {
+	if (p.run_flag & RUN_RECVFROM) {
 		print_header("recvfrom", 0);
 		time_function(sockfd, &p, sink_with_recvfrom);
 	}
