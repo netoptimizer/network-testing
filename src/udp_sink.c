@@ -694,7 +694,7 @@ static void init_params(struct sink_params *params)
 	params->timeout = -1;
 	params->sk_timeout = -1;
 	params->count  = 1000000;
-	params->repeat = 2;
+	params->repeat = 1;
 	params->batch = 32;
 	params->iov_elems = 1;
 	params->buf_sz = 4096;
