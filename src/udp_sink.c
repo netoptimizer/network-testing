@@ -128,7 +128,7 @@ static int usage(char *argv[])
 	return EXIT_FAIL_OPTION;
 }
 
-static void check_pkt(struct iovec *iov, int nr, int len, struct sink_params *p)
+static void __check_pkt(struct iovec *iov, int nr, int len, struct sink_params *p)
 {
 	static struct pktgen_hdr last = { .pgh_magic = 0 };
 	int offset = 0, i = 0, hdr = 0, l = len;
@@ -223,6 +223,14 @@ static void check_pkt(struct iovec *iov, int nr, int len, struct sink_params *p)
 
 	if (current.pgh_magic)
 		last = current;
+}
+static inline
+void check_pkt(struct iovec *iov, int nr, int len, struct sink_params *p)
+{
+	if (likely(!p->check))
+		return;
+
+	__check_pkt(iov, nr, len, p);
 }
 
 static int sink_with_read(int sockfd, struct sink_params *p) {
