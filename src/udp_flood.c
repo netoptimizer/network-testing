@@ -439,7 +439,7 @@ static void time_function(int sockfd, struct flood_params *p,
 	uint64_t tsc_begin,  tsc_end,  tsc_interval;
 	uint64_t time_begin, time_end, time_interval;
 	int cnt_send;
-	double pps=0, ns_per_pkt=0, timesec=0;
+	double pps, ns_per_pkt=0, timesec=0;
 	uint64_t tsc_cycles = 0;
 
 	time_begin = gettime();
@@ -459,8 +459,7 @@ static void time_function(int sockfd, struct flood_params *p,
 	}
 
 	/* Stats */
-	if (time_interval / NANOSEC_PER_SEC)
-		pps = cnt_send / ((double)time_interval / NANOSEC_PER_SEC);
+	pps = cnt_send / ((double)time_interval / NANOSEC_PER_SEC);
 	if (cnt_send) {
 		tsc_cycles = tsc_interval / cnt_send;
 		ns_per_pkt = ((double)time_interval / cnt_send);
@@ -473,7 +472,7 @@ static void time_function(int sockfd, struct flood_params *p,
 static void init_params(struct flood_params *params)
 {
 	memset(params, 0, sizeof(struct flood_params));
-	params->count  = 1000000;
+	params->count  = DEFAULT_COUNT;
 	params->batch = 32;
 	params->msg_sz = 18; /* 18 +14(eth)+8(UDP)+20(IP)+4(Eth-CRC) = 64 bytes */
 	params->pmtu = -1;
