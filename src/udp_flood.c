@@ -169,11 +169,13 @@ static void fill_buf(const struct flood_params *p, char *buf, int len)
 	}
 }
 
-static int flood_with_sendto(int sockfd, struct flood_params *p)
+static int flood_with_sendto(int sockfd, struct flood_params *p,
+			     struct time_bench_record *r)
 {
 	char *msg_buf;
 	int cnt, res = 0;
 	socklen_t addrlen = sockaddr_len(&p->dest_addr);
+	uint64_t total = 0;
 
 	/* Allocate payload buffer */
 	msg_buf = malloc_payload_buffer(p->msg_sz);
@@ -188,7 +190,9 @@ static int flood_with_sendto(int sockfd, struct flood_params *p)
 			perror("- sendto");
 			goto out;
 		}
+		total += res;
 	}
+	r->bytes = total;
 	res = cnt;
 
 out:
@@ -196,11 +200,13 @@ out:
 	return res;
 }
 
-static int flood_with_send(int sockfd, struct flood_params *p)
+static int flood_with_send(int sockfd, struct flood_params *p,
+			   struct time_bench_record *r)
 {
 	char *msg_buf;
 	int cnt, res = 0;
 	int flags = 0;
+	uint64_t total = 0;
 
 	/* Allocate payload buffer */
 	msg_buf = malloc_payload_buffer(p->msg_sz);
@@ -213,7 +219,9 @@ static int flood_with_send(int sockfd, struct flood_params *p)
 			perror("- send");
 			goto out;
 		}
+		total += res;
 	}
+	r->bytes = total;
 	res = cnt;
 
 out:
@@ -221,10 +229,12 @@ out:
 	return res;
 }
 
-static int flood_with_write(int sockfd, struct flood_params *p)
+static int flood_with_write(int sockfd, struct flood_params *p,
+			    struct time_bench_record *r)
 {
 	char *msg_buf;
 	int cnt, res = 0;
+	uint64_t total = 0;
 
 	/* Allocate payload buffer */
 	msg_buf = malloc_payload_buffer(p->msg_sz);
@@ -238,7 +248,9 @@ static int flood_with_write(int sockfd, struct flood_params *p)
 			perror("- write");
 			goto out;
 		}
+		total += res;
 	}
+	r->bytes = total;
 	res = cnt;
 
 out:
@@ -279,12 +291,14 @@ out:
 	};
 */
 
-static int flood_with_sendmsg(int sockfd, struct flood_params *p)
+static int flood_with_sendmsg(int sockfd, struct flood_params *p,
+			      struct time_bench_record *r)
 {
 	char          *msg_buf;  /* payload data */
 	struct msghdr *msg_hdr;  /* struct for setting up transmit */
 	struct iovec  *msg_iov;  /* io-vector: array of pointers to payload data */
 	unsigned int  iov_array_elems = 1; /*adjust to test scattered payload */
+	uint64_t total = 0;
 	int i;
 
 	int cnt, res;
@@ -321,7 +335,9 @@ static int flood_with_sendmsg(int sockfd, struct flood_params *p)
 		if (res < 0) {
 			goto error;
 		}
+		total += res;
 	}
+	r->bytes = total;
 	res = cnt;
 	goto out;
 error:
@@ -351,13 +367,15 @@ out:
 /* Notice: double "m" in sendmmsg
  * - sending multible packet in one syscall
  */
-static int flood_with_sendMmsg(int sockfd, struct flood_params *p)
+static int flood_with_sendMmsg(int sockfd, struct flood_params *p,
+			       struct time_bench_record *r)
 {
 	int total_size = p->batch * p->msg_sz; /* total amount to be allocated */
 	char          *msg_buf;  /* payload data */
 	struct iovec  *msg_iov;  /* io-vector: array of pointers to payload data */
 	unsigned int  iov_array_elems = 1; /*adjust to test scattered payload */
 	int i, batches, last;
+	uint64_t total = 0;
 
 	batches = p->count / p->batch;
 	last = p->count - batches * p->batch;
@@ -409,7 +427,10 @@ static int flood_with_sendMmsg(int sockfd, struct flood_params *p)
 
 		if (res < 0)
 			goto error;
+		total += res * p->msg_sz;
 	}
+	r->bytes = total;
+
 	if (last) {
 		if (p->pktgen_hdr)
 			for (pkt = 0; pkt < p->batch; pkt++)
@@ -434,13 +455,14 @@ out:
 
 
 static void time_function(int sockfd, struct flood_params *p,
-	int (*func)(int sockfd, struct flood_params *p))
+			  int (*func)(int sockfd, struct flood_params *p,
+				      struct time_bench_record *r))
 {
 	struct time_bench_record rec = {0};
 	int cnt_send;
 
 	time_bench_start(&rec);
-	cnt_send = func(sockfd, p);
+	cnt_send = func(sockfd, p, &rec);
 	time_bench_stop(&rec);
 
 	if (cnt_send < 0) {
@@ -528,7 +550,7 @@ int main(int argc, char *argv[])
 	Connect(sockfd, (struct sockaddr *)&p.dest_addr, sockaddr_len(&p.dest_addr));
 
 	if (!verbose)
-		printf("             \tns/pkt\tpps\t\ttsc_int\n");
+		printf("             \tns/pkt\tpps\t\tcycles\tpayload\n");
 	if (run_flag & RUN_SEND) {
 		print_header("send", 0);
 		time_function(sockfd, &p, flood_with_send);
