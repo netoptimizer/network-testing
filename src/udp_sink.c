@@ -605,12 +605,10 @@ static void init_stats(struct sink_params *params, unsigned int testrun)
 static void time_function(int sockfd, struct sink_params *p,
 			  int (*func)(int sockfd, struct sink_params *p))
 {
-	uint64_t tsc_begin,  tsc_end,  tsc_interval, tsc_cycles;
-	uint64_t time_begin, time_end, time_interval;
 	char from_ip[INET6_ADDRSTRLEN] = {0}; /* Assume max IPv6 */
+	struct time_bench_record rec = {0};
 	int str_max = sizeof(from_ip);
 	int cnt_recv, j;
-	double pps, ns_per_pkt, timesec;
 	#define TMPMAX 4096
 	char buffer[TMPMAX];
 	int res;
@@ -681,27 +679,18 @@ static void time_function(int sockfd, struct sink_params *p,
 			printf("run: %d %d\t", j, p->count);
 		}
 
-		time_begin = gettime();
-		tsc_begin  = rdtsc();
+		time_bench_start(&rec);
 		cnt_recv = func(sockfd, p);
-		tsc_end  = rdtsc();
-		time_end = gettime();
-		tsc_interval  = tsc_end  - tsc_begin;
-		time_interval = time_end - time_begin;
+		time_bench_stop(&rec);
 
 		if (cnt_recv < 0) {
-			fprintf(stderr, "ERROR: failed to send packets\n");
+			fprintf(stderr, "ERROR: failed to recv packets\n");
 			close(sockfd);
 			exit(EXIT_FAIL_RECV);
 		}
-
-		/* Stats */
-		pps        = cnt_recv / ((double)time_interval / NANOSEC_PER_SEC);
-		tsc_cycles = tsc_interval / cnt_recv;
-		ns_per_pkt = ((double)time_interval / cnt_recv);
-		timesec    = ((double)time_interval / NANOSEC_PER_SEC);
-		print_result(tsc_cycles, ns_per_pkt, pps, timesec,
-			     cnt_recv, tsc_interval);
+		rec.packets = cnt_recv;
+		time_bench_calc_stats(&rec);
+		time_bench_print_stats(&rec);
 		print_check_result(p);
 		init_stats(p, p->run_flag_curr);
 	}

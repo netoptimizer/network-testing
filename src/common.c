@@ -14,6 +14,7 @@
 #include <string.h> /* memset */
 #include <errno.h>
 
+#include "common.h"
 #include "global.h"
 
 int verbose = 0;
@@ -47,6 +48,30 @@ uint64_t gettime(void)
 	}
 
 	return (uint64_t) t.tv_sec * NANOSEC_PER_SEC + t.tv_nsec;
+}
+
+void time_bench_start(struct time_bench_record *r)
+{
+	r->time_start = gettime();
+	r->tsc_start  = rdtsc();
+}
+
+void time_bench_stop(struct time_bench_record *r)
+{
+	r->tsc_stop  = rdtsc();
+	r->time_stop = gettime();
+}
+
+/* Calculate stats, store results in record */
+void time_bench_calc_stats(struct time_bench_record *r)
+{
+	r->tsc_interval  = r->tsc_stop  - r->tsc_start;
+	r->time_interval = r->time_stop - r->time_start;
+
+	r->pps = r->packets / ((double)r->time_interval / NANOSEC_PER_SEC);
+	r->tsc_cycles = r->tsc_interval / r->packets;
+	r->ns_per_pkt = ((double)r->time_interval / r->packets);
+	r->timesec    = ((double)r->time_interval / NANOSEC_PER_SEC);
 }
 
 /* Allocate payload buffer */
@@ -146,6 +171,19 @@ void print_result(uint64_t tsc_cycles, double ns_per_pkt, double pps,
 	} else {
 		printf("%.2f\t%.2f\t%lu\t%lu\n",
 		       ns_per_pkt, pps, tsc_cycles, tsc_interval);
+	}
+}
+
+void time_bench_print_stats(struct time_bench_record *r)
+{
+	if (verbose) {
+		printf(" - Per packet: %lu cycles(tsc) %.2f ns, %.2f pps (time:%.2f sec)\n"
+		       "   (packet count:%ld tsc_interval:%lu)\n",
+		       r->tsc_cycles, r->ns_per_pkt, r->pps, r->timesec,
+		       r->packets, r->tsc_interval);
+	} else {
+		printf("%.2f\t%.2f\t%lu\t%lu\n",
+		       r->ns_per_pkt, r->pps, r->tsc_cycles, r->tsc_interval);
 	}
 }
 

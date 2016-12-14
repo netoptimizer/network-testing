@@ -21,6 +21,23 @@ struct pktgen_hdr {
 	uint32_t tv_usec;
 };
 
+struct time_bench_record
+{
+	/* Stats */
+	int64_t  packets;
+	uint64_t tsc_start;
+	uint64_t tsc_stop;
+	uint64_t time_start;
+	uint64_t time_stop;
+
+	/* Calculated stats */
+	uint64_t tsc_interval;
+	uint64_t time_interval;
+	uint64_t tsc_cycles;
+
+	double pps, ns_per_pkt, timesec;
+};
+
 inline uint64_t rdtsc()
 {
 	uint32_t low, high;
@@ -28,7 +45,11 @@ inline uint64_t rdtsc()
 	return low  | (((uint64_t )high ) << 32);
 }
 
-unsigned long long gettime(void);
+uint64_t gettime(void);
+void time_bench_start(struct time_bench_record *r);
+void time_bench_stop(struct time_bench_record *r);
+void time_bench_calc_stats(struct time_bench_record *r);
+void time_bench_print_stats(struct time_bench_record *r);
 
 char *malloc_payload_buffer(int msg_sz);
 void print_result(uint64_t tsc_cycles, double ns_per_pkt, double pps,
