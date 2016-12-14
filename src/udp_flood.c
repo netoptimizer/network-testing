@@ -436,37 +436,21 @@ out:
 static void time_function(int sockfd, struct flood_params *p,
 	int (*func)(int sockfd, struct flood_params *p))
 {
-	uint64_t tsc_begin,  tsc_end,  tsc_interval;
-	uint64_t time_begin, time_end, time_interval;
+	struct time_bench_record rec = {0};
 	int cnt_send;
-	double pps, ns_per_pkt=0, timesec=0;
-	uint64_t tsc_cycles = 0;
 
-	time_begin = gettime();
-	tsc_begin  = rdtsc();
+	time_bench_start(&rec);
 	cnt_send = func(sockfd, p);
-	//cnt_send = flood_with_sendmsg(sockfd, dest_addr, count, msg_sz);
-	//cnt_send = flood_with_sendto(sockfd, dest_addr, count, msg_sz);
-	tsc_end  = rdtsc();
-	time_end = gettime();
-	tsc_interval  = tsc_end  - tsc_begin;
-	time_interval = time_end - time_begin;
+	time_bench_stop(&rec);
 
 	if (cnt_send < 0) {
 		fprintf(stderr, "ERROR: failed to send packets\n");
 		close(sockfd);
 		exit(EXIT_FAIL_SEND);
 	}
-
-	/* Stats */
-	pps = cnt_send / ((double)time_interval / NANOSEC_PER_SEC);
-	if (cnt_send) {
-		tsc_cycles = tsc_interval / cnt_send;
-		ns_per_pkt = ((double)time_interval / cnt_send);
-	}
-	timesec    = ((double)time_interval / NANOSEC_PER_SEC);
-	print_result(tsc_cycles, ns_per_pkt, pps, timesec,
-		     cnt_send, tsc_interval);
+	rec.packets = cnt_send;
+	time_bench_calc_stats(&rec);
+	time_bench_print_stats(&rec);
 }
 
 static void init_params(struct flood_params *params)
