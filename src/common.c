@@ -159,21 +159,6 @@ int read_ip_early_demux(void)
 	return value;
 }
 
-
-void print_result(uint64_t tsc_cycles, double ns_per_pkt, double pps,
-		  double timesec, int cnt_send, uint64_t tsc_interval)
-{
-	if (verbose) {
-		printf(" - Per packet: %lu cycles(tsc) %.2f ns, %.2f pps (time:%.2f sec)\n"
-		       "   (packet count:%d tsc_interval:%lu)\n",
-		       tsc_cycles, ns_per_pkt, pps, timesec,
-		       cnt_send, tsc_interval);
-	} else {
-		printf("%.2f\t%.2f\t%lu\t%lu\n",
-		       ns_per_pkt, pps, tsc_cycles, tsc_interval);
-	}
-}
-
 void time_bench_print_stats(struct time_bench_record *r)
 {
 	if (verbose) {
