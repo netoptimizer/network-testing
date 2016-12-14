@@ -40,7 +40,7 @@ struct time_bench_record
 	double pps, ns_per_pkt, timesec;
 };
 
-inline uint64_t rdtsc()
+static inline uint64_t rdtsc()
 {
 	uint32_t low, high;
 	asm volatile("rdtsc" : "=a" (low), "=d" (high));
