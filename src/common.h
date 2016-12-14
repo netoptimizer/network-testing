@@ -25,6 +25,7 @@ struct time_bench_record
 {
 	/* Stats */
 	int64_t  packets;
+	uint64_t bytes;
 	uint64_t tsc_start;
 	uint64_t tsc_stop;
 	uint64_t time_start;
@@ -34,6 +35,7 @@ struct time_bench_record
 	uint64_t tsc_interval;
 	uint64_t time_interval;
 	uint64_t tsc_cycles;
+	uint64_t payload_pktsz;
 
 	double pps, ns_per_pkt, timesec;
 };

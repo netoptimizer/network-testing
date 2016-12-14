@@ -72,6 +72,7 @@ void time_bench_calc_stats(struct time_bench_record *r)
 	r->tsc_cycles = r->tsc_interval / r->packets;
 	r->ns_per_pkt = ((double)r->time_interval / r->packets);
 	r->timesec    = ((double)r->time_interval / NANOSEC_PER_SEC);
+	r->payload_pktsz = r->bytes / r->packets;
 }
 
 /* Allocate payload buffer */
@@ -163,12 +164,12 @@ void time_bench_print_stats(struct time_bench_record *r)
 {
 	if (verbose) {
 		printf(" - Per packet: %lu cycles(tsc) %.2f ns, %.2f pps (time:%.2f sec)\n"
-		       "   (packet count:%ld tsc_interval:%lu)\n",
+		       "   (packet count:%ld payload pkt-size:%lu)\n",
 		       r->tsc_cycles, r->ns_per_pkt, r->pps, r->timesec,
-		       r->packets, r->tsc_interval);
+		       r->packets, r->payload_pktsz);
 	} else {
 		printf("%.2f\t%.2f\t%lu\t%lu\n",
-		       r->ns_per_pkt, r->pps, r->tsc_cycles, r->tsc_interval);
+		       r->ns_per_pkt, r->pps, r->tsc_cycles, r->payload_pktsz);
 	}
 }
 

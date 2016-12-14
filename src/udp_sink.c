@@ -246,7 +246,8 @@ void print_check_result(struct sink_params *p)
 	}
 }
 
-static int sink_with_read(int sockfd, struct sink_params *p) {
+static int sink_with_read(int sockfd, struct sink_params *p,
+			  struct time_bench_record *r) {
 	int i, res;
 	uint64_t total = 0;
 	char *buffer = malloc_payload_buffer(p->buf_sz);
@@ -257,6 +258,7 @@ static int sink_with_read(int sockfd, struct sink_params *p) {
 			goto error;
 		total += res;
 	}
+	r->bytes = total;
 	if (verbose > 0)
 		printf(" - read %lu bytes in %d packets\n", total, i);
 
@@ -272,7 +274,8 @@ static int sink_with_read(int sockfd, struct sink_params *p) {
 	exit(EXIT_FAIL_SOCK);
 }
 
-static int sink_with_recvfrom(int sockfd, struct sink_params *p) {
+static int sink_with_recvfrom(int sockfd, struct sink_params *p,
+			      struct time_bench_record *r) {
 	int i, res;
 	uint64_t total = 0;
 	char *buffer = malloc_payload_buffer(p->buf_sz);
@@ -284,6 +287,7 @@ static int sink_with_recvfrom(int sockfd, struct sink_params *p) {
 			goto error;
 		total += res;
 	}
+	r->bytes = total;
 	if (verbose > 0)
 		printf(" - read %lu bytes in %d packets = %lu bytes payload\n",
 		       total, i, total / i);
@@ -410,7 +414,8 @@ static void check_cmsg(struct msghdr *msg_hdr, struct sink_params *p,
 		printf("ttl: %d\n", found_ttl);
 }
 
-static int sink_with_recvmsg(int sockfd, struct sink_params *p) {
+static int sink_with_recvmsg(int sockfd, struct sink_params *p,
+			     struct time_bench_record *r) {
 	int i, res;
 	uint64_t total = 0;
 	char *buffer = malloc_payload_buffer(p->buf_sz);
@@ -461,6 +466,7 @@ static int sink_with_recvmsg(int sockfd, struct sink_params *p) {
 
 		total += res;
 	}
+	r->bytes = total;
 	if (verbose > 0)
 		printf(" - read %lu bytes in %d packets = %lu bytes payload\n",
 		       total, i, total / i);
@@ -491,7 +497,8 @@ static int sink_with_recvmsg(int sockfd, struct sink_params *p) {
 	};
 */
 
-static int sink_with_recvMmsg(int sockfd, struct sink_params *p) {
+static int sink_with_recvMmsg(int sockfd, struct sink_params *p,
+			      struct time_bench_record *r) {
 	int cnt, i, res, pkt, batches = 0;
 	uint64_t total = 0, packets;
 	char *buffer = malloc_payload_buffer(p->buf_sz);
@@ -562,6 +569,7 @@ static int sink_with_recvMmsg(int sockfd, struct sink_params *p) {
 		cnt += res;
 	}
 	packets = cnt;
+	r->bytes = total;
 	if (verbose > 0) {
 		printf(" - read %lu bytes in %lu packets= %lu bytes "
 			       "payload", total, packets,
@@ -603,7 +611,8 @@ static void init_stats(struct sink_params *params, unsigned int testrun)
 }
 
 static void time_function(int sockfd, struct sink_params *p,
-			  int (*func)(int sockfd, struct sink_params *p))
+			  int (*func)(int sockfd, struct sink_params *p,
+				      struct time_bench_record *r))
 {
 	char from_ip[INET6_ADDRSTRLEN] = {0}; /* Assume max IPv6 */
 	struct time_bench_record rec = {0};
@@ -680,7 +689,7 @@ static void time_function(int sockfd, struct sink_params *p,
 		}
 
 		time_bench_start(&rec);
-		cnt_recv = func(sockfd, p);
+		cnt_recv = func(sockfd, p, &rec);
 		time_bench_stop(&rec);
 
 		if (cnt_recv < 0) {
