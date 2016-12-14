@@ -610,7 +610,7 @@ static void init_stats(struct sink_params *params, unsigned int testrun)
 	params->run_flag_curr	= testrun;
 }
 
-static void time_function(int sockfd, struct sink_params *p,
+static void time_function(int sockfd, struct sink_params *p, const char *name,
 			  int (*func)(int sockfd, struct sink_params *p,
 				      struct time_bench_record *r))
 {
@@ -685,7 +685,9 @@ static void time_function(int sockfd, struct sink_params *p,
 			printf(" Test run: %d (expecting to receive %d pkts)\n",
 			       j, p->count);
 		} else {
-			printf("run: %d %d\t", j, p->count);
+			int b = (p->run_flag_curr & RUN_RECVMMSG) ? p->batch:0;
+			print_header(name, b);
+			printf("run: %2d\t%8d\t", j, p->count);
 		}
 
 		time_bench_start(&rec);
@@ -840,28 +842,29 @@ int main(int argc, char *argv[])
 		}
 	}
 
+	if (!verbose)
+		printf("%-10s\t%-8s %-8s\tns/pkt\tpps\t\tcycles\tpayload\n",
+		       "", "run", "count");
+
+
 	if (p.run_flag       & RUN_RECVMMSG) {
 		init_stats(&p, RUN_RECVMMSG);
-		print_header("recvMmsg", p.batch);
-		time_function(sockfd, &p, sink_with_recvMmsg);
+		time_function(sockfd, &p, "recvMmsg", sink_with_recvMmsg);
 	}
 
 	if (p.run_flag       & RUN_RECVMSG) {
 		init_stats(&p, RUN_RECVMSG);
-		print_header("recvmsg", 0);
-		time_function(sockfd, &p, sink_with_recvmsg);
+		time_function(sockfd, &p, "recvmsg", sink_with_recvmsg);
 	}
 
 	if (p.run_flag       & RUN_READ) {
 		init_stats(&p, RUN_READ);
-		print_header("read", 0);
-		time_function(sockfd, &p, sink_with_read);
+		time_function(sockfd, &p, "read", sink_with_read);
 	}
 
 	if (p.run_flag       & RUN_RECVFROM) {
 		init_stats(&p, RUN_RECVFROM);
-		print_header("recvfrom", 0);
-		time_function(sockfd, &p, sink_with_recvfrom);
+		time_function(sockfd, &p, "recvfrom", sink_with_recvfrom);
 	}
 
 	close(sockfd);
