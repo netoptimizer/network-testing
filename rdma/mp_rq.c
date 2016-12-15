@@ -1,6 +1,7 @@
 #include <infiniband/verbs.h>
 #include <infiniband/verbs_exp.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
 
@@ -18,23 +19,30 @@ int main() {
     struct ibv_device *ib_dev;
     struct ibv_context *context;
     struct ibv_pd *pd;
-	int ret;
+    int ret, i, num_devices;
 
-	
     /* get list of offload capable devices */
-    dev_list = ibv_get_device_list(NULL);
+    dev_list = ibv_get_device_list(&num_devices);
     if (!dev_list) {
         perror("Failed to get IB devices list");
         exit(1);
     }
+    printf("INFO: num_devices:%d\n", num_devices);
+    if (num_devices == 0) {
+	    fprintf(stderr, "Zero IB devices found\n");
+	    exit(1);
+    }
 
-
-
-    /* always use first device in list */
-    ib_dev = dev_list[0];
+    /* find a device in list */
+    for (i = 0; i < num_devices; i++) {
+	    ib_dev = dev_list[i];
+	    if (ib_dev)
+		    break;
+	    printf("IB skipping dev_list[%d]\n", i);
+    }
     if (!ib_dev) {
-        fprintf(stderr, "IB device not found\n");
-        exit(1);
+	    fprintf(stderr, "IB device not found\n");
+	    exit(1);
     }
 
     /* get conetext to device - needed for resource tracking and further operations */
