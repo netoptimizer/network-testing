@@ -38,6 +38,9 @@ struct time_bench_record
 	uint64_t payload_pktsz;
 
 	double pps, ns_per_pkt, timesec;
+
+	/* Settings */
+	int ip_early_demux;
 };
 
 static inline uint64_t rdtsc()
@@ -52,6 +55,7 @@ void time_bench_start(struct time_bench_record *r);
 void time_bench_stop(struct time_bench_record *r);
 void time_bench_calc_stats(struct time_bench_record *r);
 void time_bench_print_stats(struct time_bench_record *r);
+void time_bench_record_setting(struct time_bench_record *r);
 
 char *malloc_payload_buffer(int msg_sz);
 void print_result(uint64_t tsc_cycles, double ns_per_pkt, double pps,

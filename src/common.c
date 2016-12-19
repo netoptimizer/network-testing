@@ -160,6 +160,11 @@ int read_ip_early_demux(void)
 	return value;
 }
 
+void time_bench_record_setting(struct time_bench_record *r)
+{
+	r->ip_early_demux = read_ip_early_demux();
+}
+
 void time_bench_print_stats(struct time_bench_record *r)
 {
 	if (verbose) {
@@ -168,8 +173,11 @@ void time_bench_print_stats(struct time_bench_record *r)
 		       r->tsc_cycles, r->ns_per_pkt, r->pps, r->timesec,
 		       r->packets, r->payload_pktsz);
 	} else {
-		printf("%.2f\t%.2f\t%lu\t%lu\n",
+		printf("%.2f\t%.2f\t%lu\t%lu",
 		       r->ns_per_pkt, r->pps, r->tsc_cycles, r->payload_pktsz);
+		if (r->ip_early_demux)
+			printf(" demux:%d", r->ip_early_demux);
+		printf("\n");
 	}
 }
 

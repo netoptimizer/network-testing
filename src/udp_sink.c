@@ -690,6 +690,7 @@ static void time_function(int sockfd, struct sink_params *p, const char *name,
 			printf("run: %2d\t%8d\t", j, p->count);
 		}
 
+		time_bench_record_setting(&rec);
 		time_bench_start(&rec);
 		cnt_recv = func(sockfd, p, &rec);
 		time_bench_stop(&rec);
