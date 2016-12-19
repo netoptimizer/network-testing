@@ -254,8 +254,13 @@ static int sink_with_read(int sockfd, struct sink_params *p,
 
 	for (i = 0; i < p->count; i++) {
 		res = read(sockfd, buffer, p->buf_sz);
-		if (res < 0)
+		if (res < 0) {
+			if (errno == EAGAIN) {
+				r->try_again++;
+				continue;
+			}
 			goto error;
+		}
 		total += res;
 	}
 	r->bytes = total;
@@ -263,7 +268,7 @@ static int sink_with_read(int sockfd, struct sink_params *p,
 		printf(" - read %lu bytes in %d packets\n", total, i);
 
 	free(buffer);
-	return i;
+	return (i - r->try_again);
 
  error: /* ugly construct to make sure the loop is small */
 	fprintf(stderr, "ERROR: %s() failed (%d) errno(%d) ",
@@ -283,8 +288,13 @@ static int sink_with_recvfrom(int sockfd, struct sink_params *p,
 
 	for (i = 0; i < p->count; i++) {
 		res = recvfrom(sockfd, buffer, p->buf_sz, flags, NULL, NULL);
-		if (res < 0)
+		if (res < 0) {
+			if (errno == EAGAIN) {
+				r->try_again++;
+				continue;
+			}
 			goto error;
+		}
 		total += res;
 	}
 	r->bytes = total;
@@ -293,7 +303,7 @@ static int sink_with_recvfrom(int sockfd, struct sink_params *p,
 		       total, i, total / i);
 
 	free(buffer);
-	return i;
+	return (i - r->try_again);
 
  error: /* ugly construct to make sure the loop is small */
 	fprintf(stderr, "ERROR: %s() failed (%d) errno(%d) ",
@@ -457,8 +467,13 @@ static int sink_with_recvmsg(int sockfd, struct sink_params *p,
 	/* Receive LOOP */
 	for (i = 0; i < p->count; i++) {
 		res = recvmsg(sockfd, msg_hdr, flags);
-		if (res < 0)
+		if (res < 0) {
+			if (errno == EAGAIN) {
+				r->try_again++;
+				continue;
+			}
 			goto error;
+		}
 
 		check_pkt(msg_iov, p->iov_elems, res, p);
 		check_msg_name(msg_hdr, &p->sender_addr);
@@ -473,7 +488,7 @@ static int sink_with_recvmsg(int sockfd, struct sink_params *p,
 	free(msg_iov);
 	free(msg_hdr);
 	free(buffer);
-	return i;
+	return (i - r->try_again);
 
  error: /* ugly construct to make sure the loop is small */
 	fprintf(stderr, "ERROR: %s() failed (%d) errno(%d) ",
@@ -555,8 +570,13 @@ static int sink_with_recvMmsg(int sockfd, struct sink_params *p,
 	for (cnt = 0; cnt < p->count; ) {
 		__ts = ___ts;
 		res = recvmmsg(sockfd, mmsg_hdr, p->batch, flags, ts);
-		if (res < 0)
+		if (res < 0) {
+			if (errno == EAGAIN) {
+				r->try_again++;
+				continue;
+			}
 			goto error;
+		}
 		batches++;
 		for (pkt = 0; pkt < res; pkt++) {
 			total += mmsg_hdr[pkt].msg_len;
@@ -568,7 +588,7 @@ static int sink_with_recvMmsg(int sockfd, struct sink_params *p,
 		}
 		cnt += res;
 	}
-	packets = cnt;
+	packets = cnt - r->try_again;
 	r->bytes = total;
 	if (verbose > 0) {
 		printf(" - read %lu bytes in %lu packets= %lu bytes "

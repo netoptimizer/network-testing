@@ -30,6 +30,7 @@ struct time_bench_record
 	uint64_t tsc_stop;
 	uint64_t time_start;
 	uint64_t time_stop;
+	uint64_t try_again; /* EAGAIN include/uapi/asm-generic/errno-base.h */
 
 	/* Calculated stats */
 	uint64_t tsc_interval;

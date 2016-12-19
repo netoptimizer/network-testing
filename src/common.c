@@ -162,6 +162,7 @@ int read_ip_early_demux(void)
 
 void time_bench_record_setting(struct time_bench_record *r)
 {
+	memset(r, 0, sizeof(*r));
 	r->ip_early_demux = read_ip_early_demux();
 }
 
@@ -181,6 +182,8 @@ void time_bench_print_stats(struct time_bench_record *r,
 			printf(" demux:%d", r->ip_early_demux);
 		if (c->connect)
 			printf(" c:%d", c->connect);
+		if (r->try_again)
+			printf(" emptyq:%d", r->try_again);
 		printf("\n");
 	}
 }
