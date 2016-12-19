@@ -43,6 +43,10 @@ struct time_bench_record
 	int ip_early_demux;
 };
 
+struct params_common {
+	int connect;
+};
+
 static inline uint64_t rdtsc()
 {
 	uint32_t low, high;
@@ -54,7 +58,8 @@ uint64_t gettime(void);
 void time_bench_start(struct time_bench_record *r);
 void time_bench_stop(struct time_bench_record *r);
 void time_bench_calc_stats(struct time_bench_record *r);
-void time_bench_print_stats(struct time_bench_record *r);
+void time_bench_print_stats(struct time_bench_record *r,
+			    struct params_common *c);
 void time_bench_record_setting(struct time_bench_record *r);
 
 char *malloc_payload_buffer(int msg_sz);

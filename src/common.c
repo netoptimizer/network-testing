@@ -165,7 +165,8 @@ void time_bench_record_setting(struct time_bench_record *r)
 	r->ip_early_demux = read_ip_early_demux();
 }
 
-void time_bench_print_stats(struct time_bench_record *r)
+void time_bench_print_stats(struct time_bench_record *r,
+			    struct params_common *c)
 {
 	if (verbose) {
 		printf(" - Per packet: %lu cycles(tsc) %.2f ns, %.2f pps (time:%.2f sec)\n"
@@ -177,6 +178,8 @@ void time_bench_print_stats(struct time_bench_record *r)
 		       r->ns_per_pkt, r->pps, r->tsc_cycles, r->payload_pktsz);
 		if (r->ip_early_demux)
 			printf(" demux:%d", r->ip_early_demux);
+		if (c->connect)
+			printf(" c:%d", c->connect);
 		printf("\n");
 	}
 }

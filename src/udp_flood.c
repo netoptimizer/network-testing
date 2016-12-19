@@ -41,6 +41,7 @@ static const char *__doc__=
 #define RUN_ALL       (RUN_SENDMSG | RUN_SENDMMSG | RUN_SENDTO | RUN_WRITE | RUN_SEND)
 
 struct flood_params {
+	struct params_common c;
 	int lite;
 	int batch;
 	int count;
@@ -472,7 +473,7 @@ static void time_function(int sockfd, struct flood_params *p,
 	}
 	rec.packets = cnt_send;
 	time_bench_calc_stats(&rec);
-	time_bench_print_stats(&rec);
+	time_bench_print_stats(&rec, &p->c);
 }
 
 static void init_params(struct flood_params *params)
@@ -548,6 +549,7 @@ int main(int argc, char *argv[])
 	 * kernel performing connect/unconnect cycles
 	 */
 	Connect(sockfd, (struct sockaddr *)&p.dest_addr, sockaddr_len(&p.dest_addr));
+	p.c.connect = 1;
 
 	if (!verbose)
 		printf("             \tns/pkt\tpps\t\tcycles\tpayload\n");

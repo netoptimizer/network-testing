@@ -42,6 +42,7 @@ static const char *__doc__=
 #define RUN_ALL       (RUN_RECVMSG | RUN_RECVMMSG | RUN_RECVFROM | RUN_READ)
 
 struct sink_params {
+	struct params_common c;
 	int lite;
 	int iov_elems;
 	int batch;
@@ -55,7 +56,6 @@ struct sink_params {
 	int sk_timeout;
 	int timeout;
 	int check;
-	int connect;
 	struct sockaddr_storage sender_addr;
 	int so_reuseport;
 	int buf_sz;
@@ -666,11 +666,11 @@ static void time_function(int sockfd, struct sink_params *p, const char *name,
 		perror("- inet_ntop");
 		goto socket_error;
 	}
-	if (verbose && !p->connect)
+	if (verbose && !p->c.connect)
 		printf("  * Got first packet from IP:port %s:%d\n",
 		       from_ip, ntohs(src_port));
 
-	if (p->connect) {
+	if (p->c.connect) {
 		if (verbose)
 			printf("  * Connect UDP sock to src IP:port %s:%d\n",
 			       from_ip, ntohs(src_port));
@@ -702,7 +702,7 @@ static void time_function(int sockfd, struct sink_params *p, const char *name,
 		}
 		rec.packets = cnt_recv;
 		time_bench_calc_stats(&rec);
-		time_bench_print_stats(&rec);
+		time_bench_print_stats(&rec, &p->c);
 		print_check_result(p);
 		init_stats(p, p->run_flag_curr);
 	}
@@ -770,7 +770,7 @@ int main(int argc, char *argv[])
 		if (c == 'L') p.lite      = 1;
 		if (c == 'd') p.dontwait  = 1;
 		if (c == 'B') p.bad_addr  = atoi(optarg);
-		if (c == 'C') p.connect  = 1;
+		if (c == 'C') p.c.connect  = 1;
 		if (c == 's') p.so_reuseport = 1;
 		if (c == 'S') setup_sockaddr(addr_family, &p.sender_addr,
 					     optarg, 0);
