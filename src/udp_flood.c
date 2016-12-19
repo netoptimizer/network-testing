@@ -552,7 +552,8 @@ int main(int argc, char *argv[])
 	p.c.connect = 1;
 
 	if (!verbose)
-		printf("             \tns/pkt\tpps\t\tcycles\tpayload\n");
+		printf("%-14s\t packets \tns/pkt\tpps\t\tcycles\tpayload\n",
+		       "");
 	if (run_flag & RUN_SEND) {
 		print_header("send", 0);
 		time_function(sockfd, &p, flood_with_send);

@@ -687,7 +687,7 @@ static void time_function(int sockfd, struct sink_params *p, const char *name,
 		} else {
 			int b = (p->run_flag_curr & RUN_RECVMMSG) ? p->batch:0;
 			print_header(name, b);
-			printf("run: %2d\t%8d\t", j, p->count);
+			printf("run: %2d\t", j);
 		}
 
 		time_bench_record_setting(&rec);
