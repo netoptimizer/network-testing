@@ -822,11 +822,11 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	/* enable the requested ancillatory messages */
+	/* enable the requested ancillary messages */
 	if (p.recv_pktinfo) {
 		if (setsockopt(sockfd, SOL_IP, IP_PKTINFO, &on, sizeof(on)) < 0) {
-			printf("ERROR: No support for IP_RECVTOS\n");
-			perror("- setsockopt(IP_RECVTOS)");
+			printf("ERROR: No support for IP_PKTINFO\n");
+			perror("- setsockopt(IP_PKTINFO)");
 			exit(EXIT_FAIL_SOCKOPT);
 		}
 	}
@@ -834,7 +834,7 @@ int main(int argc, char *argv[])
 	if (p.recv_ttl) {
 		if (setsockopt(sockfd, SOL_IP, IP_RECVTTL, &on, sizeof(on)) < 0) {
 			printf("ERROR: No support for IP_RECVTTL\n");
-			perror("- setsockopt(IP_RECVTOS)");
+			perror("- setsockopt(IP_RECVTTL)");
 			exit(EXIT_FAIL_SOCKOPT);
 		}
 	}
