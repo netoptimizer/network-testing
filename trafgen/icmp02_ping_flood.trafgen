@@ -20,17 +20,19 @@
   eth(daddr=DST_MAC, proto=ETH_P_IP), /* saddr=default device MAC addr */
 
   /* --- IPv4 Header --- */
-  ipv4(version=4,
-       ihl=5,
-       tos=0,
-       len=50,   /* IPv4 Total Len (ICMP-hdr(8) + payload(22)+IP-hdr 20 bytes)*/
-       id=2,     /* IPv4 Ident */
-       ttl=64,   /* IPv4 TTL */
+  ipv4(ttl=64,   /* IPv4 TTL */
        proto=1,  /* Proto ICMP */
-       //csum=csumip(14, 33), /* IPv4 Checksum (IP header from, to) */
-       /* sa=SRC_IP, Source IP: default device IPv4 address */
-       da=DST_IP  /* Dest   IP */
+       da=DST_IP /* Dest   IP */
   ),
+  /* Most of the IPv4 header is default filled by ipv4 helper
+   *
+   * len=50 IPv4 total Len is 50=(ICMP-hdr(8) + payload(22)+IP-hdr 20 bytes)
+   * but helper ipv4() can calculate this automatically
+   *
+   * sa=SRC_IP, Source IP: default device IPv4 address
+   *
+   * The csum=csumip(14, 33) is also default calculated.
+   */
 
   /* --- ICMP Header --- */
   8,  	        /* Type: echo-request */
