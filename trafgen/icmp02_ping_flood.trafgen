@@ -1,0 +1,55 @@
+/* ICMP ping flood example
+
+This file need to be run with --cpp for c-preprocessor call.
+
+Command example:
+ trafgen --cpp --dev eth0 --conf THIS_FILE \
+  --cpu 1 --verbose --num 4 -t0
+*/
+#define ETH_P_IP	0x0800
+
+#ifndef DST_MAC
+#define DST_MAC  0xf4, 0x52, 0x14, 0x7a, 0x5b, 0x52
+#endif
+
+#ifndef DST_IP   /* Dest IP */
+#define DST_IP   198, 18, 39, 3
+#endif
+
+#define SRC_MAC	 0xf4, 0x52, 0x14, 0x7a, 0x58, 0xf2
+#define SRC_IP   198,18,39,1 /* Source IP */
+
+{
+  /* --- Ethernet Header --- */
+  DST_MAC,
+  SRC_MAC,
+  const16(ETH_P_IP),
+
+  /* --- IPv4 Header --- */
+  0b01000101, 0,  /* IPv4 Version, IHL, TOS */
+  const16(50),    /* IPv4 Total Len (ICMP-hdr(8) + payload(22)+IP-hdr 20 bytes)*/
+  const16(2),     /* IPv4 Ident TODO-use: drnd(2) */
+  0b01000000, 0,  /* IPv4 Flags, Frag Off */
+  64,             /* IPv4 TTL */
+  1,          	  /* Proto ICMP */
+  csumip(14, 33), /* IPv4 Checksum (IP header from, to) */
+  SRC_IP,         /* Source IP */
+  DST_IP,         /* Dest IP */
+
+  /* --- ICMP Header --- */
+  8,  	        /* Type: echo-request */
+  0,  	        /* Code */
+  csumicmp(34, 64), /* Checksum ICMP-hdr start(34) + hdr-len(8) + payload(22) */
+  const16(42),	/* Identifier */
+  /* Sequence number (2 bytes)*/
+  0,
+  dinc(0,255,1), /* Dynamic increment (1 bytes) (start, stop, stepping) */
+  /*
+   * It would have been better to use seqinc, but it is not dyn-evalulated
+   * Usage example:
+  seqinc(0,2,1), // seqinc(start, size, stepping)
+   */
+
+  /*** Payload ***/
+  fill('B', 22),
+}
