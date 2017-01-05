@@ -15,8 +15,6 @@
 #define DST_IP   198.18.39.3
 #endif
 
-#define SRC_IP   198.18.39.1 /* Source IP */
-
 {
   /* --- Ethernet Header --- */
   eth(daddr=DST_MAC, proto=ETH_P_IP), /* saddr=default device MAC addr */
@@ -30,7 +28,7 @@
        ttl=64,   /* IPv4 TTL */
        proto=1,  /* Proto ICMP */
        //csum=csumip(14, 33), /* IPv4 Checksum (IP header from, to) */
-       sa=SRC_IP, /* Source IP */
+       /* sa=SRC_IP, Source IP: default device IPv4 address */
        da=DST_IP  /* Dest   IP */
   ),
 
