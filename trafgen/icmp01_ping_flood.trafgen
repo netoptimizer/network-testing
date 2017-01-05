@@ -41,7 +41,9 @@ Command example:
   0,  	        /* Code */
   csumicmp(34, 64), /* Checksum ICMP-hdr start(34) + hdr-len(8) + payload(22) */
   const16(42),	/* Identifier */
-  const16(1),	/* Sequence number */
+  /* Sequence number (2 bytes)*/
+  0,
+  dinc(0,255,1), /* Dynamic increment (1 bytes) (start, stop, stepping) */
 
   /*** Payload ***/
   fill('B', 22),
