@@ -1,29 +1,25 @@
-/* ICMP ping flood example
-
-This file need to be run with --cpp for c-preprocessor call.
-
-Command example:
- trafgen --cpp --dev eth0 --conf THIS_FILE \
-  --cpu 1 --verbose --num 4 -t0
-*/
+/* ICMP ping flood example.
+ *
+ * Notice using new trafgen syntax, which is easier to write available
+ * in trafgen/netsniff-ng version 0.6.2 (thanks to Vadim Kochan)
+ *
+ * This file need to be run with --cpp for c-preprocessor call.
+ */
 #define ETH_P_IP	0x0800
 
 #ifndef DST_MAC
-#define DST_MAC  0xf4, 0x52, 0x14, 0x7a, 0x5b, 0x52
+#define DST_MAC  f4:52:14:7a:5b:52
 #endif
 
 #ifndef DST_IP   /* Dest IP */
 #define DST_IP   198, 18, 39, 3
 #endif
 
-#define SRC_MAC	 0xf4, 0x52, 0x14, 0x7a, 0x58, 0xf2
 #define SRC_IP   198,18,39,1 /* Source IP */
 
 {
   /* --- Ethernet Header --- */
-  DST_MAC,
-  SRC_MAC,
-  const16(ETH_P_IP),
+  eth(daddr=DST_MAC, proto=ETH_P_IP), /* saddr=default device MAC addr */
 
   /* --- IPv4 Header --- */
   0b01000101, 0,  /* IPv4 Version, IHL, TOS */
