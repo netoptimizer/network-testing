@@ -22,7 +22,10 @@
   /* --- IPv4 Header --- */
   ipv4(ttl=64,   /* IPv4 TTL */
        proto=1,  /* Proto ICMP */
-       da=DST_IP /* Dest   IP */
+       da=DST_IP, /* Dest IP */
+#ifdef SRC_IP
+       sa=SRC_IP, /* Src IP via cmdline: --define SRC_IP=198.18.50.2 */
+#endif
   ),
   /* Most of the IPv4 header is default filled by ipv4 helper
    *
