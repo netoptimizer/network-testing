@@ -12,25 +12,27 @@
 #endif
 
 #ifndef DST_IP   /* Dest IP */
-#define DST_IP   198, 18, 39, 3
+#define DST_IP   198.18.39.3
 #endif
 
-#define SRC_IP   198,18,39,1 /* Source IP */
+#define SRC_IP   198.18.39.1 /* Source IP */
 
 {
   /* --- Ethernet Header --- */
   eth(daddr=DST_MAC, proto=ETH_P_IP), /* saddr=default device MAC addr */
 
   /* --- IPv4 Header --- */
-  0b01000101, 0,  /* IPv4 Version, IHL, TOS */
-  const16(50),    /* IPv4 Total Len (ICMP-hdr(8) + payload(22)+IP-hdr 20 bytes)*/
-  const16(2),     /* IPv4 Ident TODO-use: drnd(2) */
-  0b01000000, 0,  /* IPv4 Flags, Frag Off */
-  64,             /* IPv4 TTL */
-  1,          	  /* Proto ICMP */
-  csumip(14, 33), /* IPv4 Checksum (IP header from, to) */
-  SRC_IP,         /* Source IP */
-  DST_IP,         /* Dest IP */
+  ipv4(version=4,
+       ihl=5,
+       tos=0,
+       len=50,   /* IPv4 Total Len (ICMP-hdr(8) + payload(22)+IP-hdr 20 bytes)*/
+       id=2,     /* IPv4 Ident */
+       ttl=64,   /* IPv4 TTL */
+       proto=1,  /* Proto ICMP */
+       //csum=csumip(14, 33), /* IPv4 Checksum (IP header from, to) */
+       sa=SRC_IP, /* Source IP */
+       da=DST_IP  /* Dest   IP */
+  ),
 
   /* --- ICMP Header --- */
   8,  	        /* Type: echo-request */
