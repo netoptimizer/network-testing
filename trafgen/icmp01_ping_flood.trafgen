@@ -44,6 +44,11 @@ Command example:
   /* Sequence number (2 bytes)*/
   0,
   dinc(0,255,1), /* Dynamic increment (1 bytes) (start, stop, stepping) */
+  /*
+   * It would have been better to use seqinc, but it is not dyn-evalulated
+   * Usage example:
+  seqinc(0,2,1), // seqinc(start, size, stepping)
+   */
 
   /*** Payload ***/
   fill('B', 22),
