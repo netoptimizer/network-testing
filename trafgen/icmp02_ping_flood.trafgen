@@ -17,12 +17,23 @@
 
 {
   /* --- Ethernet Header --- */
-  eth(daddr=DST_MAC, proto=ETH_P_IP), /* saddr=default device MAC addr */
+  eth(daddr=DST_MAC,
+      /* saddr=default device MAC addr,
+       * cmdline can --define SRC_MAC=e4:1d:2d:af:60:65
+       */
+#ifdef SRC_MAC
+      saddr=SRC_MAC,
+#endif
+      proto=ETH_P_IP
+  ),
 
   /* --- IPv4 Header --- */
-  ipv4(ttl=64,   /* IPv4 TTL */
+  ipv4(ttl=2,    /* IPv4 TTL */
        proto=1,  /* Proto ICMP */
-       da=DST_IP /* Dest   IP */
+       da=DST_IP, /* Dest IP */
+#ifdef SRC_IP
+       sa=SRC_IP, /* Src IP via cmdline: --define SRC_IP=198.18.50.2 */
+#endif
   ),
   /* Most of the IPv4 header is default filled by ipv4 helper
    *

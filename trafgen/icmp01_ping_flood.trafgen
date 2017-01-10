@@ -30,7 +30,7 @@ Command example:
   const16(50),    /* IPv4 Total Len (ICMP-hdr(8) + payload(22)+IP-hdr 20 bytes)*/
   const16(2),     /* IPv4 Ident TODO-use: drnd(2) */
   0b01000000, 0,  /* IPv4 Flags, Frag Off */
-  64,             /* IPv4 TTL */
+  2,             /* IPv4 TTL */
   1,          	  /* Proto ICMP */
   csumip(14, 33), /* IPv4 Checksum (IP header from, to) */
   SRC_IP,         /* Source IP */
