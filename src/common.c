@@ -178,7 +178,7 @@ void time_bench_print_stats(struct time_bench_record *r,
 		       r->tsc_cycles, r->ns_per_pkt, r->pps, r->timesec,
 		       r->packets, r->payload_pktsz);
 	} else {
-		printf("%8d\t%.2f\t%.2f\t%lu\t%lu\t",
+		printf("%8lu\t%.2f\t%.2f\t%lu\t%lu\t",
 		       r->packets, r->ns_per_pkt, r->pps, r->tsc_cycles,
 		       r->payload_pktsz);
 		if (r->ip_early_demux)
@@ -186,7 +186,7 @@ void time_bench_print_stats(struct time_bench_record *r,
 		if (c->connect)
 			printf(" c:%d", c->connect);
 		if (r->try_again)
-			printf(" emptyq:%d", r->try_again);
+			printf(" emptyq:%lu", r->try_again);
 		printf("\n");
 	}
 }
