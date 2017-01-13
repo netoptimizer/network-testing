@@ -1,0 +1,104 @@
+/* ICMP Destination Unreachable example.
+ *
+ * This test is related to the attack called BlackNurse:
+ *   http://www.blacknurse.dk/
+ *
+ * This test goes one-level deeper, by trying to reach a deeper kernel
+ * code path, by (you manually) creating an established connection on
+ * the target host first, and carefully constructing the inner ICMP
+ * IP-header to match established connection.
+ *
+ *
+ * Notice using new trafgen syntax, which is easier to write available
+ * in trafgen/netsniff-ng version 0.6.2 (thanks to Vadim Kochan)
+ *
+ * This file need to be run with --cpp for c-preprocessor call.
+ */
+#define ETH_P_IP	0x0800
+
+#ifndef DST_MAC
+#define DST_MAC  f4:52:14:7a:5b:52
+#endif
+
+#ifndef DST_IP   /* Dest IP */
+#define DST_IP   198.18.39.3
+#endif
+
+/*
+ * Hint: To reach deeper into kernel code path:
+ *  define SRC_IP of inner ICMP-IP-header to match established connection
+ *
+ * E.g. via cmdline: --define SRC_IP=198.18.39.1
+ */
+#ifndef SRC_IP   /* Src IP */
+#warning "use --define SRC_IP='x.x.x.x'"
+#endif
+
+#define type_ICMP_DEST_UNREACH 3
+#define code_ICMP_PORT_UNREACH 3
+
+{
+  /* --- Ethernet Header --- */
+  eth(daddr=DST_MAC,
+      /* saddr=default device MAC addr,
+       * cmdline can --define SRC_MAC=e4:1d:2d:af:60:65
+       */
+#ifdef SRC_MAC
+      saddr=SRC_MAC,
+#endif
+      proto=ETH_P_IP
+  ),
+
+  /* --- IPv4 Header --- */
+  ipv4(ttl=2,    /* IPv4 TTL */
+       proto=1,  /* Proto ICMP */
+       da=DST_IP, /* Dest IP */
+#ifdef SRC_IP
+       sa=SRC_IP,
+#endif
+  ),
+
+  /* --- ICMP Header --- */
+  icmp4(type=type_ICMP_DEST_UNREACH,
+	code=code_ICMP_PORT_UNREACH,
+  ),
+
+  /*** Payload ***
+   *
+   * Payload is important because this allow us to exercise different
+   *  parts of the kernel, choosing struct net_protocol->err_handler()'s.
+   */
+
+  /* Minimum need embedded IPv4 (4 bit) header len >= 5 in icmp_unreach() */
+  ipv4(ihl=5,
+       proto=6, /* TCP: calls err_handler=tcp_v4_err() */
+       /* TODO: Want to fuzz proto=drnd(1, 0, 137) */
+#ifdef SRC_IP
+       da=SRC_IP,
+#endif
+       sa=DST_IP,
+      /* Notice source-addr gets used to reverse lookup into
+         inet_lookup_established, thus must match IP on target host */
+
+  ),
+  /* icmp_socket_deliver() needs minimum 8 bytes extra */
+
+  /* Fake the inner ICMP TCP header */
+  tcp(sport=80,
+      dport=6666,
+      seq=drnd(),    /* Randomize sequence number */
+      //ackseq=drnd(),
+  ),
+
+ /*
+  * If doing this "right", and first creating an established TCP socket:
+  *   e.g.: nc -p 6666 198.18.39.3 80
+  *
+  * Then __inet_lookup_established() in tcp_v4_err() can return a
+  * valid socket and we can reach deeper into the kernel code path.
+  * It is difficult to get further than nstat "TcpExtOutOfWindowIcmps"
+  * __NET_INC_STATS(LINUX_MIB_OUTOFWINDOWICMPS).  As this requires
+  * guessing the TCP seq number.
+  *
+  */
+}
