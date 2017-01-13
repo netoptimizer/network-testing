@@ -56,8 +56,6 @@ void set_sock_qdisc_bypass(int fd, int verbose)
 
 int pf_tx_socket(int ver)
 {
-        int ret;
-
 	/* Don't use proto htons(ETH_P_ALL) as we only want to transmit */
 	int sock = socket(PF_PACKET, SOCK_RAW, 0);
         if (sock == -1) {
@@ -65,7 +63,7 @@ int pf_tx_socket(int ver)
                 exit(1);
         }
 
-        ret = Setsockopt(sock, SOL_PACKET, PACKET_VERSION, &ver, sizeof(ver));
+        Setsockopt(sock, SOL_PACKET, PACKET_VERSION, &ver, sizeof(ver));
 
         return sock;
 }
