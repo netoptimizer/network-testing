@@ -147,6 +147,7 @@ int read_ip_early_demux(void)
 
 	if (!fgets(buf, sizeof(buf), file)) {
 		perror("fgets");
+		fclose(file);
 		exit(EXIT_FAIL_FILEACCESS);
 	}
 	res = sscanf(buf,"%u",&value);
@@ -155,8 +156,10 @@ int read_ip_early_demux(void)
 			"ERROR: cannot parse ip_early_demux errno(%d) ", errno);
 		if (res == EOF)
 			perror("sscanf");
+		fclose(file);
 		exit(EXIT_FAIL_FILEACCESS);
 	}
+	fclose(file);
 	return value;
 }
 
