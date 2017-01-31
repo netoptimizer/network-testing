@@ -52,10 +52,10 @@
   /* --- IPv4 Header --- */
   ipv4(ttl=2,    /* IPv4 TTL */
        /*proto=1,   Proto ICMP=1 automatic filled due to below ICMP header */
-       da=DST_IP, /* Dest IP */
 #ifdef SRC_IP
        sa=SRC_IP,
 #endif
+       da=DST_IP, /* Dest IP */
   ),
 
   /* --- ICMP Header --- */
@@ -73,10 +73,10 @@
   ipv4(ihl=5,   /* default=5 */
        /* proto=6, == TCP: calls err_handler=tcp_v4_err() */
        /* TODO: Want to fuzz proto=drnd(1, 0, 137) */
+       sa=DST_IP,
 #ifdef SRC_IP
        da=SRC_IP,
 #endif
-       sa=DST_IP,
       /* Notice source-addr gets used to reverse lookup into
          inet_lookup_established, thus must match IP on target host */
 
