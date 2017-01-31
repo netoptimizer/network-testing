@@ -46,12 +46,12 @@
 #ifdef SRC_MAC
       saddr=SRC_MAC,
 #endif
-      proto=ETH_P_IP
+      /* proto=ETH_P_IP == auto selected by below ipv4 header */
   ),
 
   /* --- IPv4 Header --- */
   ipv4(ttl=2,    /* IPv4 TTL */
-       proto=1,  /* Proto ICMP */
+       /*proto=1,   Proto ICMP=1 automatic filled due to below ICMP header */
        da=DST_IP, /* Dest IP */
 #ifdef SRC_IP
        sa=SRC_IP,
@@ -70,8 +70,8 @@
    */
 
   /* Minimum need embedded IPv4 (4 bit) header len >= 5 in icmp_unreach() */
-  ipv4(ihl=5,
-       proto=6, /* TCP: calls err_handler=tcp_v4_err() */
+  ipv4(ihl=5,   /* default=5 */
+       /* proto=6, == TCP: calls err_handler=tcp_v4_err() */
        /* TODO: Want to fuzz proto=drnd(1, 0, 137) */
 #ifdef SRC_IP
        da=SRC_IP,
