@@ -31,6 +31,7 @@ fi
 [ -z "$DST_MAC" ]   && DST_MAC="90:e2:ba:ff:ff:ff"
 [ -z "$BURST" ]     && BURST=32
 [ -z "$CLONE_SKB" ] && CLONE_SKB="0" # No need for clones when bursting
+[ -z "$COUNT" ]     && COUNT="0" # Zero means indefinitely
 
 # Base Config
 DELAY="0"  # Zero means max speed
