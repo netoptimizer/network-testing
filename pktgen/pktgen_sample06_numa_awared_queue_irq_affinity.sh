@@ -16,7 +16,7 @@ source ${basedir}/parameters.sh
 
 # Base Config
 DELAY="0"        # Zero means max speed
-COUNT="20000000"   # Zero means indefinitely
+[ -z "$COUNT" ]     && COUNT="20000000"   # Zero means indefinitely
 [ -z "$CLONE_SKB" ] && CLONE_SKB="0"
 
 # Flow variation random source port between min and max
