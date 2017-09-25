@@ -25,6 +25,7 @@ static const char *__doc__=
 #include <sys/uio.h> /* struct iovec */
 #include <errno.h>
 #include <stdbool.h>
+#include <linux/filter.h>
 
 #include <getopt.h>
 
@@ -34,6 +35,10 @@ static const char *__doc__=
 #include "global.h"
 #include "common.h"
 #include "common_socket.h"
+
+#ifndef SO_ATTACH_REUSEPORT_CBPF
+#define SO_ATTACH_REUSEPORT_CBPF	51
+#endif
 
 #define RUN_RECVMSG   0x1
 #define RUN_RECVMMSG  0x2
@@ -58,6 +63,7 @@ struct sink_params {
 	int check;
 	struct sockaddr_storage sender_addr;
 	int so_reuseport;
+	int use_bpf;
 	int buf_sz;
 	unsigned int run_flag;
 	unsigned int run_flag_curr;
@@ -78,6 +84,7 @@ static const struct option long_options[] = {
 	{"ipv4",	no_argument,		NULL, '4' },
 	{"ipv6",	no_argument,		NULL, '6' },
 	{"reuse-port",	no_argument,		NULL, 's' },
+	{"use-bpf",	no_argument,		NULL, 0 },
 	{"waitforone",	no_argument,		NULL, 'O' },
 	{"timeout",	required_argument,	NULL, 'i' },
 	{"sk-timeout",	required_argument,	NULL, 'I' },
@@ -736,6 +743,36 @@ socket_error:
 	exit(EXIT_FAIL_SOCK);
 }
 
+static int enable_bpf(int sockfd)
+{
+	struct sock_filter code[] = {
+		/* A = raw_smp_processor_id() */
+		{ BPF_LD  | BPF_W | BPF_ABS, 0, 0, SKF_AD_OFF + SKF_AD_CPU },
+		/* return A */
+		{ BPF_RET | BPF_A, 0, 0, 0 },
+	};
+	struct sock_fprog p = {
+		.len = 2,
+		.filter = code,
+	};
+
+	/* the kernel will call the specified filter to distribute the
+	 * packets among the SO_REUSEPORT sockets group.
+	 * Only the first socket in the group can set such filter.
+	 * The filter implemented here distributes the ingress packets
+	 * to the socket with the id equal to the CPU id processing
+	 * the packet inside the kernel.
+	 * With RSS in place and 1 to 1 mapping between ingress NIC
+	 * RX queues and NIC's irqs, this maps 1 to 1 between ingress NIC RX
+	 * queues and REUSEPORT sockets.
+	 */
+	if (setsockopt(sockfd, SOL_SOCKET, SO_ATTACH_REUSEPORT_CBPF, &p,
+		       sizeof(p)))
+		return -1;
+
+	return 0;
+}
+
 static void init_params(struct sink_params *params)
 {
 	memset(params, 0, sizeof(struct sink_params));
@@ -775,6 +812,9 @@ int main(int argc, char *argv[])
 			if (!strcmp(long_options[longindex].name,
 				    "recv-pktinfo"))
 				p.recv_pktinfo = 1;
+			if (!strcmp(long_options[longindex].name,
+				    "use-bpf"))
+				p.use_bpf = true;
 			if (!strcmp(long_options[longindex].name, "recv-ttl"))
 				p.recv_ttl = 1;
 		}
@@ -820,6 +860,15 @@ int main(int argc, char *argv[])
 			    perror("- setsockopt(SO_REUSEPORT)");
 			    exit(EXIT_FAIL_SOCKOPT);
 		}
+	}
+
+	/* Enable BPF filtering to distribute the ingress packets among the
+	 * SO_REUSEPORT sockets
+	 */
+	if (p.use_bpf && enable_bpf(sockfd)) {
+		printf("ERROR: No support for SO_ATTACH_REUSEPORT_CBPF\n");
+		perror("- setsockopt(SO_ATTACH_REUSEPORT_CBPF)");
+		exit(EXIT_FAIL_SOCKOPT);
 	}
 
 	/* enable the requested ancillary messages */
