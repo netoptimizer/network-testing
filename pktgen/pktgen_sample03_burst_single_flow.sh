@@ -35,7 +35,6 @@ fi
 
 # Base Config
 DELAY="0"  # Zero means max speed
-COUNT="0"  # Zero means indefinitely
 
 # General cleanup everything since last run
 pg_ctrl "reset"
