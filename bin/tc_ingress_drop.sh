@@ -90,8 +90,9 @@ function call_tc_allow_fail() {
 
 # Using external program "getopt" to get --long-options
 OPTIONS=$(getopt -o vfshd: \
-    --long verbose,dry-run,flush,stats,icmp,dev:,port:,ip: -- "$@")
+    --long verbose,dry-run,flush,stats,icmp,help,dev:,port:,ip: -- "$@")
 if (( $? != 0 )); then
+    usage
     err 2 "Error calling getopt"
 fi
 eval set -- "$OPTIONS"
@@ -143,9 +144,9 @@ while true; do
 	  shift
 	  break
 	  ;;
-        -h )
+        -h | --help )
           usage;
-          err 4 "[ERROR] Unknown parameters!!!"
+	  exit 0
 	  ;;
 	* )
 	  shift
