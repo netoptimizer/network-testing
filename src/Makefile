@@ -43,6 +43,12 @@ pcap_timeread: pcap_timeread.c
 pcap_read: pcap_read.c
 	gcc -o $@ $(LIBS_PCAP) $<
 
+pcap_dump: pcap_dump.c
+	gcc -o $@ $(LIBS_PCAP) $<
+
+pcap_write_sample: pcap_write_sample.c
+	gcc -o $@ $(LIBS_PCAP) $<
+
 # Special compiler option to trigger issue
 compiler_test01: compiler_test01.c
 	gcc -o $@ $(CFLAGS) -fno-strict-overflow $<

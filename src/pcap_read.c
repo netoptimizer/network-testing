@@ -6,8 +6,9 @@
  $Id: pcap_read.c,v 1.1 2002/01/23 13:25:38 hawk Exp $
  */
 
-#include<pcap.h>
+#include <pcap.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 /* Prints packet timestamp and packet lenght */
 void pkt_handler(u_char *tmp, struct pcap_pkthdr *hdr, u_char *pkt_data) {
