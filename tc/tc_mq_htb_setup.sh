@@ -42,14 +42,8 @@ if [[ ! -e /sys/class/net/$DEV/queues/tx-1 ]]; then
 	  "The MQ qdisc only works to multi-queue capable hardware"
 fi
 
-# Debug: Show script executing
-# set -xv
-
 info "Clear existing setup"
 call_tc_allow_fail qdisc del dev $DEV root
-
-# Script dies if any command fails
-set -e
 
 info " New MQ, with larger handle (MAJOR:) to allow HTB qdisc to use major 1:"
 call_tc qdisc replace dev $DEV root handle 7FFF: mq
