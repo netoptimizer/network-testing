@@ -59,11 +59,11 @@ i=0
 for dir in /sys/class/net/$DEV/queues/tx-*; do
     ((i++)) || true
     # Qdisc HTB $i: under parent 7FFF:$i
-    call_tc   qdisc add dev $DEV parent 7FFF:$i handle $i: htb default 2
-    # tc qdisc add dev $DEV parent 7FFF:1  handle 1:  htb default 2
-    # tc qdisc add dev $DEV parent 7FFF:2  handle 2:  htb default 2
-    # tc qdisc add dev $DEV parent 7FFF:3  handle 3:  htb default 2
-    # tc qdisc add dev $DEV parent 7FFF:4  handle 4:  htb default 2
+    call_tc qdisc add dev $DEV parent 7FFF:$i handle $i: htb default 2
+    #    tc qdisc add dev $DEV parent 7FFF:1  handle 1:  htb default 2
+    #    tc qdisc add dev $DEV parent 7FFF:2  handle 2:  htb default 2
+    #    tc qdisc add dev $DEV parent 7FFF:3  handle 3:  htb default 2
+    #    tc qdisc add dev $DEV parent 7FFF:4  handle 4:  htb default 2
 done
 
 # Create root-CLASS(es) under each HTB-qdisc
@@ -80,10 +80,11 @@ for dir in /sys/class/net/$DEV/queues/tx-*; do
     call_tc class add dev $DEV parent $i:1 classid $i:2 \
        htb rate $DEF_RATE ceil $DEF_CEIL
 
-    [[ -n "$VERBOSE" ]] && echo ""
-    # Should we also change the qdisc default HTB class $i:2 ?
+    # Also change the qdisc on default HTB class $i:2 ?
     # tc qdisc add dev $DEV parent $i:2 sfq
-    # tc qdisc add dev $DEV parent $i:2 fq_codel
+    call_tc qdisc add dev $DEV parent $i:2 fq_codel
+
+    [[ -n "$VERBOSE" ]] && echo ""
 done
 
 info "Now create services/customers bandwidth limits"
