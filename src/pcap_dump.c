@@ -6,8 +6,9 @@
  $Id: pcap_dump.c,v 1.3 2001/10/20 16:49:47 hawk Exp $
  */
 
-#include<pcap.h>
+#include <pcap.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 int main() {
   pcap_t        *pcap;     /* Packet capture descriptor */
