@@ -24,12 +24,12 @@ function root_check_run_with_sudo() {
 function err() {
     local exitcode=$1
     shift
-    echo "ERROR: $@" >&2
+    echo -e "ERROR: $@" >&2
     exit $exitcode
 }
 
 function warn() {
-    echo "WARN : $@" >&2
+    echo -e "WARN : $@" >&2
 }
 
 function info() {
