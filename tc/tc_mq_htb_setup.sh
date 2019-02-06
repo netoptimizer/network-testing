@@ -46,18 +46,18 @@ tc qdisc del dev $DEV root
 set -e
 
 # Create new MQ, with larger handle (MAJOR:) to allow HTB qdisc to use major 1:
-tc qdisc replace dev $DEV root handle FF: mq
+tc qdisc replace dev $DEV root handle 7FFF: mq
 
 # Create HTB leaf(s) under MQ
 i=0
 for dir in /sys/class/net/$DEV/queues/tx-*; do
     ((i++)) || true
-    echo "Qdisc HTB $i: under parent FF:$i"
-    tc   qdisc add dev $DEV parent FF:$i handle $i: htb default 2
-    # tc qdisc add dev $DEV parent FF:1  handle 1:  htb default 2
-    # tc qdisc add dev $DEV parent FF:2  handle 2:  htb default 2
-    # tc qdisc add dev $DEV parent FF:3  handle 3:  htb default 2
-    # tc qdisc add dev $DEV parent FF:4  handle 4:  htb default 2
+    echo "Qdisc HTB $i: under parent 7FFF:$i"
+    tc   qdisc add dev $DEV parent 7FFF:$i handle $i: htb default 2
+    # tc qdisc add dev $DEV parent 7FFF:1  handle 1:  htb default 2
+    # tc qdisc add dev $DEV parent 7FFF:2  handle 2:  htb default 2
+    # tc qdisc add dev $DEV parent 7FFF:3  handle 3:  htb default 2
+    # tc qdisc add dev $DEV parent 7FFF:4  handle 4:  htb default 2
 done
 
 # Create root-CLASS(es) under each HTB-qdisc
