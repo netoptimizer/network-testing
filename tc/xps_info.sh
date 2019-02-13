@@ -36,11 +36,13 @@ grep -H . /sys/class/net/$DEV/queues/tx-*/xps_cpus
 # Listing that convert the MASK to CPUs
 set +v
 txq=0
+mqleaf=0
 for xps_cpus in /sys/class/net/$DEV/queues/tx-*/xps_cpus; do
-    let txq++
+    let mqleaf++
     mask=$(cat $xps_cpus)
     value=$((0x$mask))
     #echo MASK:0x$mask
     txt=$(mask_to_cpus $value)
-    echo NIC=$DEV TXQ:$txq use $txt
+    echo "NIC=$DEV TXQ:$txq (MQ-leaf :$mqleaf) use $txt"
+    let txq++
 done
