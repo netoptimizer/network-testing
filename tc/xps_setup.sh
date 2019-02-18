@@ -7,7 +7,7 @@ function usage() {
     echo ""
     echo "Usage: $0 [-h] --dev ethX --txq N --cpu N"
     echo "  -d | --dev     : (\$DEV)       Interface/device (required)"
-    echo "  --default      : (\$DEFAULT)   Only flush (remove TC drop rules)"
+    echo "  --default      : (\$DEFAULT)   Setup 1:1 mapping TXQ-to-CPU"
     echo "  --list         : (\$LIST)      List current setting"
     echo "  --txq N        : (\$TXQ)       Select TXQ"
     echo "  --cpu N        : (\$CPU)       Select CPU that use TXQ"
