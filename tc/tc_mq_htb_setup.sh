@@ -71,8 +71,11 @@ for dir in /sys/class/net/$DEV/queues/tx-*; do
        htb rate $ROOT_RATE ceil $ROOT_CEIL
 
     # Create HTB default class $i:2
+#    call_tc class add dev $DEV parent $i:1 classid $i:2 \
+#      htb rate $DEF_RATE ceil $DEF_CEIL
+    # - set default rate different, to measure which major-class we hit
     call_tc class add dev $DEV parent $i:1 classid $i:2 \
-       htb rate $DEF_RATE ceil $DEF_CEIL
+	    htb rate ${i}00Mbit ceil ${i}20Mbit
 
     # Also change the qdisc on default HTB class $i:2 ?
     # tc qdisc add dev $DEV parent $i:2 sfq
