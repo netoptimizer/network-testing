@@ -8,6 +8,7 @@ function usage() {
     echo "Usage: $0 [-h] --dev ethX --txq N --cpu N"
     echo "  -d | --dev     : (\$DEV)       Interface/device (required)"
     echo "  --default      : (\$DEFAULT)   Setup 1:1 mapping TXQ-to-CPU"
+    echo "  --disable      : (\$DISABLE)   Disable XPS via mask 0x00"
     echo "  --list         : (\$LIST)      List current setting"
     echo "  --txq N        : (\$TXQ)       Select TXQ"
     echo "  --cpu N        : (\$CPU)       Select CPU that use TXQ"
@@ -35,6 +36,9 @@ function mask_to_cpus() {
     local cpu=0
 
     printf "CPUs in MASK=0x%02X =>" $mask
+    if [[ $mask == 0 ]]; then
+	echo " disabled"
+    fi
     while [ $mask -gt 0 ]; do
 	if [[ $((mask & 1)) -eq 1 ]]; then
 	    echo -n " cpu:$cpu"
@@ -67,7 +71,10 @@ function cpu_to_mask() {
 function xps_txq_to_cpu() {
     local txq=$1
     local cpu=$2
-    local mask=$(cpu_to_mask $cpu)
+    local mask=0
+    if [[ "$DISABLE" != "yes" ]]; then
+	mask=$(cpu_to_mask $cpu)
+    fi
     local txq_file=/sys/class/net/$DEV/queues/tx-$txq/xps_cpus
 
     if [[ -e "$txq_file" ]]; then
@@ -79,8 +86,15 @@ function xps_setup_1to1_mapping() {
     local cpu=0
     local txq=0
     for xps_cpus in /sys/class/net/$DEV/queues/tx-*/xps_cpus; do
-	# Map the TXQ to CPU number 1-to-1
-	mask=$(cpu_to_mask $cpu)
+
+	if [[ "$DISABLE" != "yes" ]]; then
+	    # Map the TXQ to CPU number 1-to-1
+	    mask=$(cpu_to_mask $cpu)
+	else
+	    # Disable XPS on TXQ
+	    mask=0
+	fi
+
 	echo $mask > $xps_cpus
 	info "NIC=$DEV TXQ:$txq use CPU $cpu (MQ-leaf :$mqleaf)"
 	let cpu++
@@ -90,7 +104,7 @@ function xps_setup_1to1_mapping() {
 
 # Using external program "getopt" to get --long-options
 OPTIONS=$(getopt -o ld: \
-    --long list,default,dev:,txq:,cpu: -- "$@")
+    --long list,default,disable,dev:,txq:,cpu: -- "$@")
 if (( $? != 0 )); then
     usage
     err 2 "Error calling getopt"
@@ -118,6 +132,11 @@ while true; do
         --default )
 	  info "Setup default 1-to-1 mapping TXQ-to-CPUs" >&2
 	  export DEFAULT=yes
+	  shift 1
+          ;;
+        --disable )
+	  info "Disable XPS via mask 0x00" >&2
+	  export DISABLE=yes
 	  shift 1
           ;;
         --txq )
@@ -151,14 +170,20 @@ if [ -z "$DEV" ]; then
 fi
 
 if [[ -n "$TXQ" ]]; then
-    if [[ -z "$CPU" ]]; then
-	err 4 "CPU also needed when giving TXQ:$TXQ"
+    if [[ -z "$CPU" && -z "$DISABLE" ]]; then
+	err 4 "CPU also needed when giving TXQ:$TXQ (or --disable)"
     fi
     xps_txq_to_cpu $TXQ $CPU
 fi
 
 if [[ -n "$DEFAULT" ]]; then
     xps_setup_1to1_mapping
+fi
+
+if [[ "$DISABLE" == "yes" ]]; then
+    if [[ -z "$DEFAULT" && -z "$TXQ" ]]; then
+	err 5 "Use --disable together with --default or --txq"
+    fi
 fi
 
 if [[ -n "$LIST" ]]; then
