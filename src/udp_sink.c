@@ -44,7 +44,8 @@ static const char *__doc__=
 #define RUN_RECVMMSG  0x2
 #define RUN_RECVFROM  0x4
 #define RUN_READ      0x8
-#define RUN_ALL       (RUN_RECVMSG | RUN_RECVMMSG | RUN_RECVFROM | RUN_READ)
+#define RUN_RECV      0x10
+#define RUN_ALL (RUN_RECVMSG | RUN_RECVMMSG | RUN_RECVFROM | RUN_READ |RUN_RECV)
 
 struct sink_params {
 	struct params_common c;
@@ -79,6 +80,7 @@ static const struct option long_options[] = {
 	{"recvfrom",	no_argument,		NULL, 't' },
 	{"recvmsg",	no_argument,		NULL, 'u' },
 	{"recvmmsg",	no_argument,		NULL, 'U' },
+	{"recv",	no_argument,		NULL, 176 },
 	/* Other options */
 	{"help",	no_argument,		NULL, 'h' },
 	{"ipv4",	no_argument,		NULL, '4' },
@@ -316,6 +318,41 @@ static int sink_with_recvfrom(int sockfd, struct sink_params *p,
 	fprintf(stderr, "ERROR: %s() failed (%d) errno(%d) ",
 		__func__, res, errno);
 	perror("- recvfrom");
+	free(buffer);
+	close(sockfd);
+	exit(EXIT_FAIL_SOCK);
+}
+
+static int sink_with_recv(int sockfd, struct sink_params *p,
+			  struct time_bench_record *r) {
+	int i, res;
+	uint64_t total = 0;
+	char *buffer = malloc_payload_buffer(p->buf_sz);
+	int flags = p->dontwait ? MSG_DONTWAIT : 0;
+
+	for (i = 0; i < p->count; i++) {
+		res = recv(sockfd, buffer, p->buf_sz, flags);
+		if (res < 0) {
+			if (errno == EAGAIN) {
+				r->try_again++;
+				continue;
+			}
+			goto error;
+		}
+		total += res;
+	}
+	r->bytes = total;
+	if (verbose > 0)
+		printf(" - read %lu bytes in %d packets = %lu bytes payload\n",
+		       total, i, total / i);
+
+	free(buffer);
+	return (i - r->try_again);
+
+ error: /* ugly construct to make sure the loop is small */
+	fprintf(stderr, "ERROR: %s() failed (%d) errno(%d) ",
+		__func__, res, errno);
+	perror("- recv");
 	free(buffer);
 	close(sockfd);
 	exit(EXIT_FAIL_SOCK);
@@ -839,6 +876,7 @@ int main(int argc, char *argv[])
 		if (c == 'U') p.run_flag   |= RUN_RECVMMSG;
 		if (c == 't') p.run_flag   |= RUN_RECVFROM;
 		if (c == 'T') p.run_flag   |= RUN_READ;
+		if (c == 176) p.run_flag   |= RUN_RECV;
 		if (c == 'h' || c == '?') return usage(argv);
 	}
 
@@ -935,6 +973,11 @@ int main(int argc, char *argv[])
 	if (p.run_flag       & RUN_RECVFROM) {
 		init_stats(&p, RUN_RECVFROM);
 		time_function(sockfd, &p, "recvfrom", sink_with_recvfrom);
+	}
+
+	if (p.run_flag       & RUN_RECV) {
+		init_stats(&p, RUN_RECV);
+		time_function(sockfd, &p, "recv", sink_with_recv);
 	}
 
 	close(sockfd);
