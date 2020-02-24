@@ -78,55 +78,6 @@ void print_header(const char *fct, int batch);
 #  define unlikely(x)	(__builtin_constant_p(x) ? !!(x) : __builtin_expect((x),0))
 # endif
 
-
-static inline uint32_t locked_cmpxchg(uint32_t *dst, uint32_t old, uint32_t new)
-{
-	volatile uint32_t *ptr = (volatile uint32_t *)dst;
-	uint32_t ret;
-
-	asm volatile("lock; cmpxchgl %2, %1"
-		     : "=a" (ret), "+m" (*ptr)
-		     : "r" (new), "0" (old)
-		     : "memory");
-
-	return ret;
-}
-
-static inline uint32_t unlocked_cmpxchg(uint32_t *dst, uint32_t old, uint32_t new)
-{
-	volatile uint32_t *ptr = (volatile uint32_t *)dst;
-	uint32_t ret;
-
-	asm volatile("cmpxchgl %2, %1"
-		     : "=a" (ret), "+m" (*ptr)
-		     : "r" (new), "0" (old)
-		     : "memory");
-
-	return ret;
-}
-
-/* xchg code based on LTTng */
-struct __uatomic_dummy {
-	unsigned long v[10];
-};
-#define __hp(x)	((struct __uatomic_dummy *)(x))
-
-static inline unsigned int implicit_locked_xchg(void *addr, unsigned long val)
-{
-	unsigned int result;
-
-	/* Note: the "xchg" instruction does not need a "lock" prefix,
-	 * because it is implicit lock prefixed
-	 */
-	asm volatile("xchgl %0, %1"
-		     : "=r"(result), "+m"(*__hp(addr))
-		     : "0" ((unsigned int)val)
-		     : "memory");
-
-	return result;
-}
-
-
 int time_func(int loops,
 	      int (*func)(int loops, uint64_t* tsc_begin, uint64_t* tsc_end,
 			  uint64_t* time_begin, uint64_t* time_end)

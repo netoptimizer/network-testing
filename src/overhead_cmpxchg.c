@@ -13,6 +13,7 @@
 
 #include "global.h"
 #include "common.h"
+#include "asm_x86.h"
 
 #define LOOPS 100000000 * 10
 
