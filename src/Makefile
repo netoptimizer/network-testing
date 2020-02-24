@@ -8,7 +8,21 @@ SRCS =  ipv6_example01.c udp_example02.c udp_echo.c udp_client_echo.c \
 	tcp_sink_epoll.c \
 	array_compare01.c \
 	burn_cpu.c udp_snd.c \
-	syscall_overhead.c overhead_cmpxchg.c
+	syscall_overhead.c
+
+# From kernel src: scripts/subarch.include
+ARCH := $(shell uname -m | sed -e s/i.86/x86/ -e s/x86_64/x86/ \
+                               -e s/sun4u/sparc64/ \
+                               -e s/arm.*/arm/ -e s/sa110/arm/ \
+                               -e s/s390x/s390/ -e s/parisc64/parisc/ \
+                               -e s/ppc.*/powerpc/ -e s/mips.*/mips/ \
+                               -e s/sh[234].*/sh/ -e s/aarch64.*/arm64/ \
+                               -e s/riscv.*/riscv/)
+
+# Some program a limited to a specific CPU architecture
+ifeq ($(ARCH),x86)
+SRCS += overhead_cmpxchg.c
+endif
 
 OBJECTS = common_socket.o common.o
 HEADERS = ${OBJECTS:.o=.h}
