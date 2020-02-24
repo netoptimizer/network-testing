@@ -50,9 +50,14 @@ struct params_common {
 
 static inline uint64_t rdtsc()
 {
+#ifdef __x86_64__
 	uint32_t low, high;
 	asm volatile("rdtsc" : "=a" (low), "=d" (high));
 	return low  | (((uint64_t )high ) << 32);
+#else
+	#warning "This ARCH does not have TSC counter"
+	return 0;
+#endif
 }
 
 uint64_t gettime(void);
