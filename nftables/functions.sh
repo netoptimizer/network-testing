@@ -38,27 +38,25 @@ function info() {
     fi
 }
 
-## -- Wrapper calls for TC --
-function _call_tc() {
-    local allow_fail="$1"
-    shift
+nft_cmd=$(which nft)
+if (( $? != 0 )); then
+    err 9 "Cannot find cmdline tool 'nft' for nftables"
+fi
+
+## -- Wrapper call for nft --
+function nft() {
     if [[ -n "$VERBOSE" ]]; then
-	echo "tc $@"
+	echo "$nft_cmd $@"
     fi
     if [[ -n "$DRYRUN" ]]; then
 	return
     fi
-    $TC "$@"
+    $su $nft_cmd "$@"
     local status=$?
     if (( $status != 0 )); then
 	if [[ "$allow_fail" == "" ]]; then
-	    err 3 "Exec error($status) occurred cmd: \"$TC $@\""
+	    echo "ERROR - Exec error($status) occurred cmd: \"$nft_cmd $@\""
+	    exit 2
 	fi
     fi
-}
-function call_tc() {
-    _call_tc "" "$@"
-}
-function call_tc_allow_fail() {
-    _call_tc "allow_fail" "$@"
 }
