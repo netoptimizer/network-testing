@@ -1,3 +1,4 @@
+#define PCAP_DONT_INCLUDE_PCAP_BPF_H
 #include <pcap.h>
 #include <stdio.h>
 #include <stdlib.h>
