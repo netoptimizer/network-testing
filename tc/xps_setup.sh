@@ -48,10 +48,15 @@ function mask_to_cpus() {
     done
 }
 
+function sorted_txq_xps_cpus() {
+    local queues=$(ls /sys/class/net/$DEV/queues/tx-*/xps_cpus | sort --field-separator='-' -k2n)
+    echo $queues
+}
+
 function list_xps_setup() {
     local txq=0
     local mqleaf=0
-    for xps_cpus in /sys/class/net/$DEV/queues/tx-*/xps_cpus; do
+    for xps_cpus in $(sorted_txq_xps_cpus); do
 	let mqleaf++
 	mask=$(cat $xps_cpus)
 	value=$((0x$mask))
@@ -85,7 +90,7 @@ function xps_txq_to_cpu() {
 function xps_setup_1to1_mapping() {
     local cpu=0
     local txq=0
-    for xps_cpus in /sys/class/net/$DEV/queues/tx-*/xps_cpus; do
+    for xps_cpus in $(sorted_txq_xps_cpus); do
 
 	if [[ "$DISABLE" != "yes" ]]; then
 	    # Map the TXQ to CPU number 1-to-1
