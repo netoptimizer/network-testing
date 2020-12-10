@@ -29,15 +29,20 @@ function cpu_to_mask() {
     printf "%X" $((1 << $cpu))
 }
 
+function sorted_txq_xps_cpus() {
+    local queues=$(ls /sys/class/net/$DEV/queues/tx-*/xps_cpus | sort --field-separator='-' -k2n)
+    echo $queues
+}
+
 set -v
 # Simple grep to show xps_cpus mapping:
-grep -H . /sys/class/net/$DEV/queues/tx-*/xps_cpus
+grep -H . $(sorted_txq_xps_cpus)
 
 # Listing that convert the MASK to CPUs
 set +v
 txq=0
 mqleaf=0
-for xps_cpus in /sys/class/net/$DEV/queues/tx-*/xps_cpus; do
+for xps_cpus in $(sorted_txq_xps_cpus); do
     let mqleaf++
     mask=$(cat $xps_cpus)
     value=$((0x$mask))
