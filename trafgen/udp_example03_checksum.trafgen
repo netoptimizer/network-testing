@@ -40,6 +40,8 @@ trafgen --cpp --dev "$DEV" --conf udp_example03_checksum.trafgen --cpu 4 --verbo
   /* UDP checksum can be dyn calc via csumudp(offset IP, offset TCP)
    * which is csumudp(14, 34), but for UDP its allowed to be zero
    */
+  // const16(0), // Trick to "disable" UDP checksum
+  // const16(1), // Trick to set invalid UDP checksum
   csumudp(14, 34),
 
   /*** Payload ***/
