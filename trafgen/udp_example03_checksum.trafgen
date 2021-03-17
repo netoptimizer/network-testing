@@ -30,7 +30,7 @@ trafgen --cpp --dev "$DEV" --conf udp_example03_checksum.trafgen --cpu 4 --verbo
 
   /* --- UDP Header --- */
   /* NEED ADJUST */
-  198,  18, 1, 66,  /* Source IP */
+  198,  18, 1, 66, /* Source IP */
   198,  18, 1, 1,  /* Dest IP */
 
   const16(9),    /* UDP Source Port e.g. drnd(2)*/
