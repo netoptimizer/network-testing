@@ -36,7 +36,7 @@ struct cfg_params {
 	int batch;
 	int count;
 	int msg_sz;
-	int pmtu; /* Path MTU Discovery setting, affect DF bit */
+	// int pmtu; /* Path MTU Discovery setting, affect DF bit */
 
 	/* Below socket setup */
 	int sockfd;
@@ -65,7 +65,33 @@ static int usage(char *argv[])
 	return EXIT_FAIL_OPTION;
 }
 
-int setup_socket(struct cfg_params *p, char *dest_ip_string)
+static int socket_send(int sockfd, struct cfg_params *p)
+{
+	char *msg_buf;
+	int cnt, res = 0;
+	int flags = 0;
+	uint64_t total = 0;
+
+	/* Allocate payload buffer */
+	msg_buf = malloc_payload_buffer(p->msg_sz);
+
+	/* Send a batch of the same packet  */
+	for (cnt = 0; cnt < p->batch; cnt++) {
+		res = send(sockfd, msg_buf, p->msg_sz, flags);
+		if (res < 0) {
+			fprintf(stderr, "Managed to send %d packets\n", cnt);
+			perror("- send");
+			goto out;
+		}
+		total += res;
+	}
+	res = cnt;
+out:
+	free(msg_buf);
+	return res;
+}
+
+void setup_socket(struct cfg_params *p, char *dest_ip_string)
 {
 	/* Setup dest_addr - will exit prog on invalid input */
 	setup_sockaddr(p->addr_family, &p->dest_addr,
@@ -75,17 +101,33 @@ int setup_socket(struct cfg_params *p, char *dest_ip_string)
 	p->sockfd = Socket(p->addr_family, SOCK_DGRAM, IPPROTO_UDP);
 
 	// TODO: Do we need some setsockopt() ?
+
+	/* Connect to recv ICMP error messages, and to avoid the
+	 * kernel performing connect/unconnect cycles
+	 */
+	Connect(p->sockfd,
+		(struct sockaddr *)&p->dest_addr,
+		sockaddr_len(&p->dest_addr));
+
+}
+
+static void init_params(struct cfg_params *p)
+{
+	memset(p, 0, sizeof(struct cfg_params));
+	p->count  = 30; // DEFAULT_COUNT
+	p->batch = 32;
+	p->msg_sz = 18; /* 18 +14(eth)+8(UDP)+20(IP)+4(Eth-CRC) = 64 bytes */
+	p->addr_family = AF_INET; /* Default address family */
+	p->dest_port = 6666;
 }
 
 int main(int argc, char *argv[])
 {
 	int c, longindex = 0;
 	struct cfg_params p;
-
-	/* Default settings */
 	char *dest_ip_str;
-	p.addr_family = AF_INET; /* Default address family */
-	p.dest_port = 6666;
+
+	init_params(&p); /* Default settings */
 
 	/* Parse commands line args */
 	while ((c = getopt_long(argc, argv, "h6c:p:m:v:b:",
@@ -110,4 +152,7 @@ int main(int argc, char *argv[])
 	/* Setup socket - will exit prog on invalid input */
 	setup_socket(&p, dest_ip_str);
 
+	socket_send(p.sockfd, &p);
+
+	return EXIT_OK;
 }
