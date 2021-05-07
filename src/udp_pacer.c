@@ -43,7 +43,7 @@ static const struct option long_options[] = {
 static int shutdown_global = 0;
 
 /* Default interval in usec */
-#define DEFAULT_INTERVAL 400000
+#define DEFAULT_INTERVAL 1000000
 
 #define USEC_PER_SEC		1000000
 #define NSEC_PER_SEC		1000000000
@@ -69,6 +69,10 @@ struct thread_param {
 	// struct cfg_params *cfg;
 	struct thread_stat *stats;
 
+	int sockfd;
+	int batch;
+	int msg_sz;
+
 	int clock;
 	unsigned long interval;
 
@@ -78,7 +82,7 @@ struct thread_param {
 /* Struct for statistics */
 struct thread_stat {
 	pthread_t thread;
-	int threadstarted;
+	// int threadstarted;
 
 	unsigned long cycles;
 	//unsigned long cyclesread;
@@ -129,19 +133,23 @@ static inline int64_t calcdiff(struct timespec t1, struct timespec t2)
 	return diff;
 }
 
-static int socket_send(int sockfd, struct cfg_params *p)
+static int socket_send(int sockfd, int msg_sz, int batch)
 {
-	char *msg_buf;
+	uint64_t total = 0;
 	int cnt, res = 0;
 	int flags = 0;
-	uint64_t total = 0;
+	char *msg_buf;
 
 	/* Allocate payload buffer */
-	msg_buf = malloc_payload_buffer(p->msg_sz);
+	msg_buf = malloc_payload_buffer(msg_sz);
+
+	/* Add test contents easy viewable via nc */
+	memset(msg_buf, 'A', msg_sz);
+	msg_buf[0]='\n';
 
 	/* Send a batch of the same packet  */
-	for (cnt = 0; cnt < p->batch; cnt++) {
-		res = send(sockfd, msg_buf, p->msg_sz, flags);
+	for (cnt = 0; cnt < batch; cnt++) {
+		res = send(sockfd, msg_buf, msg_sz, flags);
 		if (res < 0) {
 			fprintf(stderr, "Managed to send %d packets\n", cnt);
 			perror("- send");
@@ -208,10 +216,11 @@ void *timer_thread(void *param)
 
 		stat->cycles++;
 
+		socket_send(par->sockfd, par->msg_sz, par->batch);
+
 //		printf("TEST cycles:%lu min:%ld max:%ld\n",
 //		       stat->cycles, stat->min, stat->max);
 
-		next = now; //TEST
 		next.tv_sec  += interval.tv_sec;
 		next.tv_nsec += interval.tv_nsec;
 		tsnorm(&next);
@@ -220,11 +229,12 @@ void *timer_thread(void *param)
 			break;
 
 	}
-	printf("TEST cycles:%lu min:%ld max:%ld\n",
+	printf("TEST-END cycles:%lu min:%ld max:%ld\n",
 	       stat->cycles, stat->min, stat->max);
 
 out:
-	stat->threadstarted = -1;
+	// stat->threadstarted = -1;
+	shutdown_global = 1;
 
 	return NULL;
 }
@@ -254,11 +264,16 @@ static struct thread_param *setup_pthread(struct cfg_params *cfg)
 	par->max_cycles = cfg->count;
 	par->clock      = CLOCK_MONOTONIC;
 
+	/* Info for sending packets */
+	par->sockfd = cfg->sockfd;
+	par->batch  = cfg->batch;
+	par->msg_sz = cfg->msg_sz;
+
 	par->stats = stat;
 	stat->min = 1000000;
 	stat->max = 0;
 	stat->avg = 0.0;
-	stat->threadstarted = 1;
+	// stat->threadstarted = 1;
 
 	status = pthread_create(&stat->thread, &attr, timer_thread, par);
 	if (status) {
@@ -293,7 +308,7 @@ static void init_params(struct cfg_params *p)
 {
 	memset(p, 0, sizeof(struct cfg_params));
 	p->count  = 5; // DEFAULT_COUNT
-	p->batch = 32;
+	p->batch = 10;
 	p->msg_sz = 18; /* 18 +14(eth)+8(UDP)+20(IP)+4(Eth-CRC) = 64 bytes */
 	p->addr_family = AF_INET; /* Default address family */
 	p->dest_port = 6666;
@@ -332,7 +347,7 @@ int main(int argc, char *argv[])
 	/* Setup socket - will exit prog on invalid input */
 	setup_socket(&p, dest_ip_str);
 
-	socket_send(p.sockfd, &p);
+	socket_send(p.sockfd, p.msg_sz, p.batch);
 
 	signal(SIGINT, sighand);
 	signal(SIGTERM, sighand);
@@ -343,8 +358,8 @@ int main(int argc, char *argv[])
 	while (!shutdown_global) {
 		sleep(1);
 
-		if (p.count && thread->stats->cycles >= p.count)
-			break;
+		//if (p.count && thread->stats->cycles >= p.count)
+		//	break;
 	}
 
 	printf("Main exit\n");
