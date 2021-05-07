@@ -66,7 +66,6 @@ struct cfg_params {
 
 /* Struct to transfer parameters to the thread */
 struct thread_param {
-	// struct cfg_params *cfg;
 	struct thread_stat *stats;
 
 	int sockfd;
@@ -82,6 +81,7 @@ struct thread_param {
 /* Struct for statistics */
 struct thread_stat {
 	pthread_t thread;
+	int thread_started;
 
 	unsigned long cycles;
 	//unsigned long cyclesread;
@@ -119,22 +119,18 @@ static inline void tsnorm(struct timespec *ts)
 	}
 }
 
+#define DEBUG 1
 static void sighand(int sig)
 {
 	struct timespec wait;
 	int clock_type = CLOCK_MONOTONIC;
-	int timer_mode = TIMER_ABSTIME;
 
 	shutdown_global = 1;
 
-	/* Git pthread chance to wakeup and exit */
 	clock_gettime(clock_type, &wait);
-	wait.tv_nsec += DEFAULT_INTERVAL;
-	tsnorm(&wait);
-	clock_nanosleep(clock_type, timer_mode, &wait, NULL);
-
-	printf("%s() Goodbye at %ld.%ld sec\n", __func__,
-	       wait.tv_sec, wait.tv_nsec);
+	if (DEBUG)
+		printf("%s() Goodbye at %ld.%ld sec\n", __func__,
+		       wait.tv_sec, wait.tv_nsec);
 }
 
 
@@ -196,6 +192,8 @@ void *timer_thread(void *param)
 	next.tv_nsec += interval.tv_nsec;
 	tsnorm(&next);
 
+	stat->thread_started++;
+
 	while (!shutdown_global) {
 		uint64_t diff;
 		int err;
@@ -248,7 +246,7 @@ void *timer_thread(void *param)
 
 out:
 	shutdown_global = 1;
-
+	stat->thread_started = -1;
 	return NULL;
 }
 
@@ -287,6 +285,7 @@ static struct thread_param *setup_pthread(struct cfg_params *cfg)
 	stat->max = 0;
 	stat->avg = 0.0;
 
+	stat->thread_started = 1;
 	status = pthread_create(&stat->thread, &attr, timer_thread, par);
 	if (status) {
 		printf("Failed to create thread: %s\n", strerror(status));
@@ -374,10 +373,17 @@ int main(int argc, char *argv[])
 		//if (p.count && thread->stats->cycles >= p.count)
 		//	break;
 	}
+	printf("Main shutdown\n");
 
-	printf("Main exit\n");
+	/* Shutdown pthread before calling free */
+	if (thread->stats->thread_started > 0)
+		pthread_kill(thread->stats->thread, SIGTERM);
+	if (thread->stats->thread_started)
+		pthread_join(thread->stats->thread, NULL);
 
 	free(thread->stats);
 	free(thread);
+
+	printf("Main exit\n");
 	return EXIT_OK;
 }
