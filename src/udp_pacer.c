@@ -359,8 +359,6 @@ int main(int argc, char *argv[])
 	/* Setup socket - will exit prog on invalid input */
 	setup_socket(&p, dest_ip_str);
 
-	socket_send(p.sockfd, p.msg_sz, p.batch);
-
 	signal(SIGINT, sighand);
 	signal(SIGTERM, sighand);
 	signal(SIGUSR1, sighand);
