@@ -19,6 +19,13 @@ static const char *__doc__=
 #include <linux/udp.h>
 #include <arpa/inet.h>
 
+#include <pthread.h>
+#include <signal.h>
+#include <sched.h>
+#include <time.h>
+#include <errno.h>
+#include <limits.h>
+
 #include "global.h"
 #include "common.h"
 #include "common_socket.h"
@@ -32,17 +39,53 @@ static const struct option long_options[] = {
 	{0, 0, NULL,  0 }
 };
 
+/* Global variables */
+static int shutdown_global = 0;
+
+/* Default interval in usec */
+#define DEFAULT_INTERVAL 400000
+
+#define USEC_PER_SEC		1000000
+#define NSEC_PER_SEC		1000000000
+
 struct cfg_params {
 	int batch;
 	int count;
 	int msg_sz;
 	// int pmtu; /* Path MTU Discovery setting, affect DF bit */
 
+	// int clock;
+	unsigned long interval;
+
 	/* Below socket setup */
 	int sockfd;
 	int addr_family;    /* redundant: in dest_addr after setup_sockaddr */
 	uint16_t dest_port; /* redundant: in dest_addr after setup_sockaddr */
 	struct sockaddr_storage dest_addr; /* Support for both IPv4 and IPv6 */
+};
+
+/* Struct to transfer parameters to the thread */
+struct thread_param {
+	// struct cfg_params *cfg;
+	struct thread_stat *stats;
+
+	int clock;
+	unsigned long interval;
+
+	unsigned long max_cycles;
+};
+
+/* Struct for statistics */
+struct thread_stat {
+	pthread_t thread;
+	int threadstarted;
+
+	unsigned long cycles;
+	//unsigned long cyclesread;
+	long min;
+	long max;
+	long act;
+	double avg;
 };
 
 static int usage(char *argv[])
@@ -63,6 +106,27 @@ static int usage(char *argv[])
 		printf("\n");
 	}
 	return EXIT_FAIL_OPTION;
+}
+
+static void sighand(int sig)
+{
+	shutdown_global = 1;
+}
+
+static inline void tsnorm(struct timespec *ts)
+{
+	while (ts->tv_nsec >= NSEC_PER_SEC) {
+		ts->tv_nsec -= NSEC_PER_SEC;
+		ts->tv_sec++;
+	}
+}
+
+static inline int64_t calcdiff(struct timespec t1, struct timespec t2)
+{
+	int64_t diff;
+	diff = USEC_PER_SEC * (long long)((int) t1.tv_sec - (int) t2.tv_sec);
+	diff += ((int) t1.tv_nsec - (int) t2.tv_nsec) / 1000;
+	return diff;
 }
 
 static int socket_send(int sockfd, struct cfg_params *p)
@@ -91,6 +155,120 @@ out:
 	return res;
 }
 
+void *timer_thread(void *param)
+{
+	struct thread_param *par = param;
+	struct thread_stat *stat = par->stats;
+
+	int timermode = TIMER_ABSTIME;
+	int clock = par->clock;
+
+	struct timespec now, next, interval;
+
+	interval.tv_sec = par->interval / USEC_PER_SEC;
+	interval.tv_nsec = (par->interval % USEC_PER_SEC) * 1000;
+
+	clock_gettime(par->clock, &now);
+
+	next = now;
+	next.tv_sec  += interval.tv_sec;
+	next.tv_nsec += interval.tv_nsec;
+	tsnorm(&next);
+
+	while (!shutdown_global) {
+		uint64_t diff;
+		int err;
+
+		/* Wait for next period */
+		err = clock_nanosleep(clock, timermode, &next, NULL);
+		/* Took case MODE_CLOCK_NANOSLEEP from cyclictest */
+		if (err) {
+			if (err != EINTR)
+				fprintf(stderr, "clock_nanosleep failed."
+					" err:%d errno:%d\n", err, errno);
+			goto out;
+		}
+
+		err = clock_gettime(clock, &now);
+		if (err) {
+			if (err != EINTR)
+				fprintf(stderr, "clock_getttime() failed."
+					" err:%d errno:%d\n", err, errno);
+			goto out;
+		}
+
+		/* Detect inaccuracy diff */
+		diff = calcdiff(now, next);
+		if (diff < stat->min)
+			stat->min = diff;
+		if (diff > stat->max)
+			stat->max = diff;
+		stat->avg += (double) diff;
+		stat->act = diff;
+
+		stat->cycles++;
+
+//		printf("TEST cycles:%lu min:%ld max:%ld\n",
+//		       stat->cycles, stat->min, stat->max);
+
+		next = now; //TEST
+		next.tv_sec  += interval.tv_sec;
+		next.tv_nsec += interval.tv_nsec;
+		tsnorm(&next);
+
+		if (par->max_cycles && par->max_cycles == stat->cycles)
+			break;
+
+	}
+	printf("TEST cycles:%lu min:%ld max:%ld\n",
+	       stat->cycles, stat->min, stat->max);
+
+out:
+	stat->threadstarted = -1;
+
+	return NULL;
+}
+
+static struct thread_param *setup_pthread(struct cfg_params *cfg)
+{
+	pthread_attr_t attr;
+	int status;
+
+	struct thread_param *par;
+	struct thread_stat *stat;
+
+	par  = calloc(1, sizeof(*par));
+	stat = calloc(1, sizeof(*stat));
+	if (!par || !stat) {
+                fprintf(stderr, "%s(): Mem alloc error\n", __func__);
+                exit(EXIT_FAIL_MEM);
+        }
+
+	status = pthread_attr_init(&attr);
+	if (status != 0) {
+		printf("error from pthread_attr_init: %s\n", strerror(status));
+		exit(EXIT_FAIL_PTHREAD);
+	}
+
+	par->interval   = cfg->interval;
+	par->max_cycles = cfg->count;
+	par->clock      = CLOCK_MONOTONIC;
+
+	par->stats = stat;
+	stat->min = 1000000;
+	stat->max = 0;
+	stat->avg = 0.0;
+	stat->threadstarted = 1;
+
+	status = pthread_create(&stat->thread, &attr, timer_thread, par);
+	if (status) {
+		printf("Failed to create thread: %s\n", strerror(status));
+		exit(EXIT_FAIL_PTHREAD);
+	}
+
+	return par;
+}
+
 void setup_socket(struct cfg_params *p, char *dest_ip_string)
 {
 	/* Setup dest_addr - will exit prog on invalid input */
@@ -114,15 +292,17 @@ void setup_socket(struct cfg_params *p, char *dest_ip_string)
 static void init_params(struct cfg_params *p)
 {
 	memset(p, 0, sizeof(struct cfg_params));
-	p->count  = 30; // DEFAULT_COUNT
+	p->count  = 5; // DEFAULT_COUNT
 	p->batch = 32;
 	p->msg_sz = 18; /* 18 +14(eth)+8(UDP)+20(IP)+4(Eth-CRC) = 64 bytes */
 	p->addr_family = AF_INET; /* Default address family */
 	p->dest_port = 6666;
+	p->interval = DEFAULT_INTERVAL;
 }
 
 int main(int argc, char *argv[])
 {
+	struct thread_param *thread;
 	int c, longindex = 0;
 	struct cfg_params p;
 	char *dest_ip_str;
@@ -154,5 +334,22 @@ int main(int argc, char *argv[])
 
 	socket_send(p.sockfd, &p);
 
+	signal(SIGINT, sighand);
+	signal(SIGTERM, sighand);
+	signal(SIGUSR1, sighand);
+
+	thread = setup_pthread(&p);
+
+	while (!shutdown_global) {
+		sleep(1);
+
+		if (p.count && thread->stats->cycles >= p.count)
+			break;
+	}
+
+	printf("Main exit\n");
+
+	free(thread->stats);
+	free(thread);
 	return EXIT_OK;
 }

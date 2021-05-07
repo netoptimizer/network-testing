@@ -32,7 +32,7 @@ HEADERS = ${OBJECTS:.o=.h}
 TARGETS = ${SRCS:.c=} compiler_test01
 
 # librt needed for 'clock_gettime'
-LIBS=-lrt
+LIBS=-lrt -lpthread
 LIBS_PCAP=-lpcap
 
 CFLAGS := -O2 -Wall -g
