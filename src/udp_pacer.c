@@ -111,11 +111,6 @@ static int usage(char *argv[])
 	return EXIT_FAIL_OPTION;
 }
 
-static void sighand(int sig)
-{
-	shutdown_global = 1;
-}
-
 static inline void tsnorm(struct timespec *ts)
 {
 	while (ts->tv_nsec >= NSEC_PER_SEC) {
@@ -123,6 +118,25 @@ static inline void tsnorm(struct timespec *ts)
 		ts->tv_sec++;
 	}
 }
+
+static void sighand(int sig)
+{
+	struct timespec wait;
+	int clock_type = CLOCK_MONOTONIC;
+	int timer_mode = TIMER_ABSTIME;
+
+	shutdown_global = 1;
+
+	/* Git pthread chance to wakeup and exit */
+	clock_gettime(clock_type, &wait);
+	wait.tv_nsec += DEFAULT_INTERVAL;
+	tsnorm(&wait);
+	clock_nanosleep(clock_type, timer_mode, &wait, NULL);
+
+	printf("%s() Goodbye at %ld.%ld sec\n", __func__,
+	       wait.tv_sec, wait.tv_nsec);
+}
+
 
 static inline int64_t calcdiff(struct timespec t1, struct timespec t2)
 {
@@ -196,7 +210,7 @@ void *timer_thread(void *param)
 			goto out;
 		}
 
-		/* Expecting to at "next" lets get time "now" to check */
+		/* Expecting to wakeup at "next" get systime "now" to check */
 		err = clock_gettime(clock, &now);
 		if (err) {
 			if (err != EINTR)
