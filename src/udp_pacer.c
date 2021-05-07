@@ -82,7 +82,6 @@ struct thread_param {
 /* Struct for statistics */
 struct thread_stat {
 	pthread_t thread;
-	// int threadstarted;
 
 	unsigned long cycles;
 	//unsigned long cyclesread;
@@ -176,7 +175,7 @@ void *timer_thread(void *param)
 	interval.tv_sec = par->interval / USEC_PER_SEC;
 	interval.tv_nsec = (par->interval % USEC_PER_SEC) * 1000;
 
-	clock_gettime(par->clock, &now);
+	clock_gettime(clock, &now);
 
 	next = now;
 	next.tv_sec  += interval.tv_sec;
@@ -197,6 +196,7 @@ void *timer_thread(void *param)
 			goto out;
 		}
 
+		/* Expecting to at "next" lets get time "now" to check */
 		err = clock_gettime(clock, &now);
 		if (err) {
 			if (err != EINTR)
@@ -218,8 +218,8 @@ void *timer_thread(void *param)
 
 		socket_send(par->sockfd, par->msg_sz, par->batch);
 
-//		printf("TEST cycles:%lu min:%ld max:%ld\n",
-//		       stat->cycles, stat->min, stat->max);
+		printf("Diff at cycle:%lu min:%ld max:%ld\n",
+		       stat->cycles, stat->min, stat->max);
 
 		next.tv_sec  += interval.tv_sec;
 		next.tv_nsec += interval.tv_nsec;
@@ -229,11 +229,10 @@ void *timer_thread(void *param)
 			break;
 
 	}
-	printf("TEST-END cycles:%lu min:%ld max:%ld\n",
+	printf("Thread ended stats: cycles:%lu min:%ld max:%ld\n",
 	       stat->cycles, stat->min, stat->max);
 
 out:
-	// stat->threadstarted = -1;
 	shutdown_global = 1;
 
 	return NULL;
@@ -273,7 +272,6 @@ static struct thread_param *setup_pthread(struct cfg_params *cfg)
 	stat->min = 1000000;
 	stat->max = 0;
 	stat->avg = 0.0;
-	// stat->threadstarted = 1;
 
 	status = pthread_create(&stat->thread, &attr, timer_thread, par);
 	if (status) {
@@ -309,7 +307,8 @@ static void init_params(struct cfg_params *p)
 	memset(p, 0, sizeof(struct cfg_params));
 	p->count  = 5; // DEFAULT_COUNT
 	p->batch = 10;
-	p->msg_sz = 18; /* 18 +14(eth)+8(UDP)+20(IP)+4(Eth-CRC) = 64 bytes */
+	// p->msg_sz = 18; /* 18 +14(eth)+8(UDP)+20(IP)+4(Eth-CRC) = 64 bytes */
+	p->msg_sz = 1472; /* +14(eth)+8(UDP)+20(IP) = 1514 bytes */
 	p->addr_family = AF_INET; /* Default address family */
 	p->dest_port = 6666;
 	p->interval = DEFAULT_INTERVAL;
@@ -356,7 +355,7 @@ int main(int argc, char *argv[])
 	thread = setup_pthread(&p);
 
 	while (!shutdown_global) {
-		sleep(1);
+		sleep(0.5);
 
 		//if (p.count && thread->stats->cycles >= p.count)
 		//	break;
