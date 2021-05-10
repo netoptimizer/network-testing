@@ -86,7 +86,7 @@ char *malloc_payload_buffer(int msg_sz)
 		exit(EXIT_FAIL_MEM);
 	}
 	memset(msg_buf, 0, msg_sz);
-	if (verbose)
+	if (verbose >= 3)
 		fprintf(stderr, " - malloc(msg_buf) = %d bytes\n", msg_sz);
 	return msg_buf;
 }
