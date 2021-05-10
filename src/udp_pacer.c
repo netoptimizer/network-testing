@@ -249,8 +249,9 @@ void *timer_thread(void *param)
 
 		socket_send(par->sockfd, par->msg_sz, par->batch);
 
-		printf("Diff at cycle:%lu min:%ld max:%ld\n",
-		       stat->cycles, stat->min, stat->max);
+		if (verbose >=1 )
+			printf("Diff at cycle:%lu min:%ld cur:%ld max:%ld\n",
+			       stat->cycles, stat->min, stat->act, stat->max);
 
 		next.tv_sec  += interval.tv_sec;
 		next.tv_nsec += interval.tv_nsec;
