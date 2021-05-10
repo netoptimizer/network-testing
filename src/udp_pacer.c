@@ -36,6 +36,7 @@ static const struct option long_options[] = {
 	{"batch",	required_argument,	NULL, 'b' },
 	{"count",	required_argument,	NULL, 'c' },
 	{"port",	required_argument,	NULL, 'p' },
+	{"priority",	required_argument,	NULL, 'P' },
 	{0, 0, NULL,  0 }
 };
 
@@ -56,6 +57,7 @@ struct cfg_params {
 
 	// int clock;
 	unsigned long interval;
+	int thread_prio;
 
 	/* Below socket setup */
 	int sockfd;
@@ -74,6 +76,10 @@ struct thread_param {
 
 	int clock;
 	unsigned long interval;
+
+	/* Scheduling prio */
+	int prio;
+	int policy;
 
 	unsigned long max_cycles;
 };
@@ -181,6 +187,19 @@ void *timer_thread(void *param)
 	int clock = par->clock;
 
 	struct timespec now, next, interval;
+	struct sched_param schedp;
+	int err;
+
+	/* Setup sched priority: Have huge impact on wakeup accuracy */
+	memset(&schedp, 0, sizeof(schedp));
+	schedp.sched_priority = par->prio;
+	err = sched_setscheduler(0, par->policy, &schedp);
+	if (err) {
+		fprintf(stderr, "%s(errno:%d): failed to set priority(%d): %s\n",
+			__func__, errno, par->prio, strerror(errno));
+		if (errno != EPERM)
+			goto out;
+	}
 
 	interval.tv_sec = par->interval / USEC_PER_SEC;
 	interval.tv_nsec = (par->interval % USEC_PER_SEC) * 1000;
@@ -274,6 +293,11 @@ static struct thread_param *setup_pthread(struct cfg_params *cfg)
 	par->interval   = cfg->interval;
 	par->max_cycles = cfg->count;
 	par->clock      = CLOCK_MONOTONIC;
+	par->prio       = cfg->thread_prio;
+	if (par->prio)
+		par->policy = SCHED_FIFO;
+	else
+		par->policy = SCHED_OTHER;
 
 	/* Info for sending packets */
 	par->sockfd = cfg->sockfd;
@@ -337,10 +361,11 @@ int main(int argc, char *argv[])
 	init_params(&p); /* Default settings */
 
 	/* Parse commands line args */
-	while ((c = getopt_long(argc, argv, "h6c:p:m:v:b:",
+	while ((c = getopt_long(argc, argv, "h6c:p:m:v:b:P:",
 				long_options, &longindex)) != -1) {
 		if (c == 'c') p.count       = atoi(optarg);
 		if (c == 'p') p.dest_port   = atoi(optarg);
+		if (c == 'P') p.thread_prio = atoi(optarg);
 		if (c == 'm') p.msg_sz      = atoi(optarg);
 		if (c == 'b') p.batch       = atoi(optarg);
 		if (c == '6') p.addr_family = AF_INET6;
