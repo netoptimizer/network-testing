@@ -167,19 +167,12 @@ static void fill_buf(char *buf, int len)
 	hdr->seq_num   = htonl(sequence++);
 }
 
-static int socket_send(int sockfd, int msg_sz, int batch)
+static int socket_send(int sockfd, char *msg_buf, int msg_sz, int batch)
 {
 	uint64_t total = 0;
 	int cnt, res = 0;
 	int flags = 0;
-	char *msg_buf;
 
-	/* Allocate payload buffer */
-	msg_buf = malloc_payload_buffer(msg_sz);
-
-	/* Add test contents easy viewable via nc */
-	// memset(msg_buf, 'A', msg_sz);
-	// msg_buf[0]='\n';
 	fill_buf(msg_buf, msg_sz);
 
 	/* Send a batch of the same packet  */
@@ -195,7 +188,6 @@ static int socket_send(int sockfd, int msg_sz, int batch)
 	}
 	res = cnt;
 out:
-	free(msg_buf);
 	return res;
 }
 
@@ -211,6 +203,15 @@ void *timer_thread(void *param)
 	struct timespec now, next, interval;
 	struct sched_param schedp;
 	int err;
+
+	char *msg_buf;
+	int msg_sz = par->msg_sz;
+
+	/* Allocate payload buffer */
+	msg_buf = malloc_payload_buffer(msg_sz);
+	/* Add test contents easy viewable via nc */
+	// memset(msg_buf, 'A', msg_sz);
+	// msg_buf[0]='\n';
 
 	/* Setup sched priority: Have huge impact on wakeup accuracy */
 	memset(&schedp, 0, sizeof(schedp));
@@ -269,7 +270,7 @@ void *timer_thread(void *param)
 
 		stat->cycles++;
 
-		socket_send(par->sockfd, par->msg_sz, par->batch);
+		socket_send(par->sockfd, msg_buf, msg_sz, par->batch);
 
 		if (verbose >=1 )
 			printf("Diff at cycle:%lu min:%ld cur:%ld max:%ld\n",
@@ -287,6 +288,7 @@ void *timer_thread(void *param)
 	       stat->cycles, stat->min, stat->max);
 
 out:
+	free(msg_buf);
 	shutdown_global = 1;
 	stat->thread_started = -1;
 	return NULL;
