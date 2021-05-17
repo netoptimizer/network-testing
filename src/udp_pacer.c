@@ -191,7 +191,6 @@ out:
 	return res;
 }
 
-
 void *timer_thread(void *param)
 {
 	struct thread_param *par = param;
@@ -208,7 +207,11 @@ void *timer_thread(void *param)
 	int msg_sz = par->msg_sz;
 
 	/* Allocate payload buffer */
-	msg_buf = malloc_payload_buffer(msg_sz);
+	msg_buf = calloc(1, msg_sz);
+	if (!msg_buf) {
+		fprintf(stderr, "ERROR: %s() failed in calloc()\n", __func__);
+		goto merr;
+	}
 	/* Add test contents easy viewable via nc */
 	// memset(msg_buf, 'A', msg_sz);
 	// msg_buf[0]='\n';
@@ -289,6 +292,7 @@ void *timer_thread(void *param)
 
 out:
 	free(msg_buf);
+merr:
 	shutdown_global = 1;
 	stat->thread_started = -1;
 	return NULL;
