@@ -160,7 +160,7 @@ static void fill_buf(const struct flood_params *p, char *buf, int len)
 
 	clock_gettime(CLOCK_REALTIME_COARSE, &ts);
 	hdr.tv_sec = ts.tv_sec;
-	hdr.tv_usec = ts.tv_nsec * 1000;
+	hdr.tv_usec = ts.tv_nsec / 1000;
 	hdr.pgh_magic = htonl(PKTGEN_MAGIC);
 	hdr.seq_num = sequence++;
 	for (l = 0; l < len; l += sizeof(hdr)) {
