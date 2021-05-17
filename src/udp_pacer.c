@@ -162,7 +162,7 @@ static void fill_buf(char *buf, int len)
 
 	hdr = (struct pktgen_hdr*)buf;
 	hdr->tv_sec    = htonl(ts.tv_sec);
-	hdr->tv_usec   = htonl(ts.tv_nsec * 1000);
+	hdr->tv_usec   = htonl(ts.tv_nsec / 1000);
 	hdr->pgh_magic = htonl(PKTGEN_MAGIC);
 	hdr->seq_num   = htonl(sequence++);
 }
