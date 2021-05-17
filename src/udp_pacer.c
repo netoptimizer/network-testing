@@ -152,19 +152,19 @@ static void fill_buf(char *buf, int len)
 {
 	static uint32_t sequence = 0; // FIXME: GLOBAL
 	int clock_type = CLOCK_MONOTONIC; //CLOCK_REALTIME_COARSE
-	struct pktgen_hdr hdr;
+	struct pktgen_hdr *hdr;
 	struct timespec ts;
 
 	if (sizeof(hdr) > len)
 		return;
 
 	clock_gettime(clock_type, &ts);
-	hdr.tv_sec    = htonl(ts.tv_sec);
-	hdr.tv_usec   = htonl(ts.tv_nsec * 1000);
-	hdr.pgh_magic = htonl(PKTGEN_MAGIC);
-	hdr.seq_num   = htonl(sequence++);
 
-	memcpy(buf, &hdr, len);
+	hdr = (struct pktgen_hdr*)buf;
+	hdr->tv_sec    = htonl(ts.tv_sec);
+	hdr->tv_usec   = htonl(ts.tv_nsec * 1000);
+	hdr->pgh_magic = htonl(PKTGEN_MAGIC);
+	hdr->seq_num   = htonl(sequence++);
 }
 
 static int socket_send(int sockfd, int msg_sz, int batch)
