@@ -148,21 +148,17 @@ static inline int64_t calcdiff(struct timespec t1, struct timespec t2)
 	return diff;
 }
 
-static void fill_buf(char *buf, int len)
+static void fill_buf_pktgen(char *buf, int len, struct timespec *ts)
 {
 	static uint32_t sequence = 0; // FIXME: GLOBAL
-	int clock_type = CLOCK_MONOTONIC; //CLOCK_REALTIME_COARSE
 	struct pktgen_hdr *hdr;
-	struct timespec ts;
 
 	if (sizeof(hdr) > len)
 		return;
 
-	clock_gettime(clock_type, &ts);
-
 	hdr = (struct pktgen_hdr*)buf;
-	hdr->tv_sec    = htonl(ts.tv_sec);
-	hdr->tv_usec   = htonl(ts.tv_nsec / 1000);
+	hdr->tv_sec    = htonl(ts->tv_sec);
+	hdr->tv_usec   = htonl(ts->tv_nsec / 1000);
 	hdr->pgh_magic = htonl(PKTGEN_MAGIC);
 	hdr->seq_num   = htonl(sequence++);
 }
@@ -173,11 +169,8 @@ static int socket_send(int sockfd, char *msg_buf, int msg_sz, int batch)
 	int cnt, res = 0;
 	int flags = 0;
 
-	fill_buf(msg_buf, msg_sz);
-
 	/* Send a batch of the same packet  */
 	for (cnt = 0; cnt < batch; cnt++) {
-		// fill_buf(msg_buf, msg_sz);
 		res = send(sockfd, msg_buf, msg_sz, flags);
 		if (res < 0) {
 			fprintf(stderr, "Managed to send %d packets\n", cnt);
@@ -273,6 +266,7 @@ void *timer_thread(void *param)
 
 		stat->cycles++;
 
+		fill_buf_pktgen(msg_buf, msg_sz, &now);
 		socket_send(par->sockfd, msg_buf, msg_sz, par->batch);
 
 		if (verbose >=1 )
