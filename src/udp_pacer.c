@@ -37,6 +37,8 @@ static const struct option long_options[] = {
 	{"count",	required_argument,	NULL, 'c' },
 	{"port",	required_argument,	NULL, 'p' },
 	{"priority",	required_argument,	NULL, 'P' },
+	{"interval",	required_argument,	NULL, 's' },
+	{"sleep_usec",	required_argument,	NULL, 's' },
 	{0, 0, NULL,  0 }
 };
 
@@ -385,13 +387,14 @@ int main(int argc, char *argv[])
 	init_params(&p); /* Default settings */
 
 	/* Parse commands line args */
-	while ((c = getopt_long(argc, argv, "h6c:p:m:v:b:P:",
+	while ((c = getopt_long(argc, argv, "h6c:p:m:v:b:P:s:",
 				long_options, &longindex)) != -1) {
 		if (c == 'c') p.count       = atoi(optarg);
 		if (c == 'p') p.dest_port   = atoi(optarg);
 		if (c == 'P') p.thread_prio = atoi(optarg);
 		if (c == 'm') p.msg_sz      = atoi(optarg);
 		if (c == 'b') p.batch       = atoi(optarg);
+		if (c == 's') p.interval    = atoi(optarg);
 		if (c == '6') p.addr_family = AF_INET6;
 		if (c == 'v') verbose     = optarg ? atoi(optarg) : 1;
 		if (c == 'h' || c == '?') return usage(argv);
