@@ -158,6 +158,7 @@ static void fill_buf(const struct flood_params *p, char *buf, int len)
 	if (!p->pktgen_hdr)
 		return;
 
+	/* WARNING: Wrong Endian-ness but udp_sink.c depend on this */
 	clock_gettime(CLOCK_REALTIME_COARSE, &ts);
 	hdr.tv_sec = ts.tv_sec;
 	hdr.tv_usec = ts.tv_nsec / 1000;
