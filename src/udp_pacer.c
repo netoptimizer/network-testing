@@ -148,9 +148,9 @@ static inline int64_t calcdiff(struct timespec t1, struct timespec t2)
 	return diff;
 }
 
-static void fill_buf_pktgen(char *buf, int len, struct timespec *ts)
+static void fill_buf_pktgen(char *buf, int len,
+			    struct timespec *ts, uint32_t sequence)
 {
-	static uint32_t sequence = 0; // FIXME: GLOBAL
 	struct pktgen_hdr *hdr;
 
 	if (sizeof(hdr) > len)
@@ -266,7 +266,7 @@ void *timer_thread(void *param)
 
 		stat->cycles++;
 
-		fill_buf_pktgen(msg_buf, msg_sz, &now);
+		fill_buf_pktgen(msg_buf, msg_sz, &now, stat->cycles);
 		socket_send(par->sockfd, msg_buf, msg_sz, par->batch);
 
 		if (verbose >=1 )
