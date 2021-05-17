@@ -266,7 +266,8 @@ void *timer_thread(void *param)
 
 		stat->cycles++;
 
-		fill_buf_pktgen(msg_buf, msg_sz, &now, stat->cycles);
+		/* Send diff as pktgen seq */
+		fill_buf_pktgen(msg_buf, msg_sz, &now, diff);
 		socket_send(par->sockfd, msg_buf, msg_sz, par->batch);
 
 		if (verbose >=1 )
