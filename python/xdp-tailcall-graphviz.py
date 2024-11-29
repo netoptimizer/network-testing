@@ -71,21 +71,20 @@ for prog in bpf_progs.values():
 	# Draw references to bpf maps
 	for map_id in prog['map_ids']:
 
-		# Skip drawing other maps than 'prog_array'
-# not working...
-#		if map['type'] not in 'prog_array':
-#			continue;
-
-		# Draw arrow from prog to each map in map_ids
-		dot.edge(f'prog_{prog["id"]}', f'map_{map_id}')
-
 		if map_id not in bpf_maps:
 			# If we don't have extended info about the map, draw a box with text "<unknown>"
 			dot.node(f'map_{map_id}', f'<unknown> (map_{map_id})',
 				 style='filled', fillcolor=None, shape='box')
 		else:
 			map = bpf_maps[map_id]
-			print(map)
+			# print(map)
+
+			# Skip drawing other maps than 'prog_array'
+			if map['type'] not in ['prog_array']:
+				continue;
+
+			# Draw arrow from prog to each map in map_ids
+			dot.edge(f'prog_{prog["id"]}', f'map_{map_id}')
 
 			# Draw a box with text containing the map type and id and color it pink if it's a prog_array
 			dot.node(f'map_{map_id}', f"name:{map['name']}\n{map['type']}\n(map_{map_id})",
