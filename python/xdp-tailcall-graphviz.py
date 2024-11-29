@@ -1,11 +1,9 @@
-# /// script
+#!/usr/bin/env python3
 # dependencies = ["graphviz"]
-# ///
-
+#
 from pathlib import Path
 import graphviz
 import json
-
 
 bpf_progs = {}
 bpf_maps = {}
@@ -77,7 +75,6 @@ for prog in bpf_progs.values():
 				 style='filled', fillcolor=None, shape='box')
 		else:
 			map = bpf_maps[map_id]
-			# print(map)
 
 			# Skip drawing other maps than 'prog_array'
 			if map['type'] not in ['prog_array']:
@@ -89,11 +86,6 @@ for prog in bpf_progs.values():
 			# Draw a box with text containing the map type and id and color it pink if it's a prog_array
 			dot.node(f'map_{map_id}', f"name:{map['name']}\n{map['type']}\n(map_{map_id})",
 				 style='filled', fillcolor='#ff000042' if map['type'] == 'prog_array' else None, shape='box')
-
-#			if map['type'] == 'prog_array':
-#				# Draw a box with text containing the map type
-#				dot.node(f'map_{map_id}', f"{map['type']} (map_{map_id})",
-#					 style='filled', fillcolor='#ff000042', shape='box')
 
 			# Draw arrows from the prog_array map back to a prog
 			if map['type'] == 'prog_array':
