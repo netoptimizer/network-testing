@@ -12,7 +12,7 @@ SRCS =  ipv6_example01.c udp_example02.c udp_echo.c udp_client_echo.c \
 	get_nic_driver.c \
 	cpu_dma_latency.c \
 	reciprocal_scale_test.c \
-	udp_pacer.c
+	udp_pacer.c clock_tai_test.c
 
 # From kernel src: scripts/subarch.include
 ARCH := $(shell uname -m | sed -e s/i.86/x86/ -e s/x86_64/x86/ \
